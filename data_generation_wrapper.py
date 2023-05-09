@@ -52,6 +52,7 @@ def submitCASM(N_jobs,phi,kappa,Tlist,rnd, account, walltime, mem, casm_project_
     string = ""
     for i in data_generation:
         string += str(i) + " "
+
     # using a data-generation surrogate instead of CASM
     command = []
     if test:

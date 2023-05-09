@@ -7,14 +7,14 @@ import numpy as np
 import shutil
 from shutil import copyfile
 from idnn import IDNN, find_wells
-from mechanoChemML.src.transform_layer import Transform
-from mechanoChemML.workflows.active_learning.hp_search import hyperparameterSearch
+from transform_layer import Transform
+from hp_search import hyperparameterSearch
 
 from importlib import import_module
 from data_generation_wrapper import submitCASM, compileCASMOutput, loadCASMOutput
 import tensorflow as tf
 from sobol_seq import i4_sobol
-from mechanoChemML.workflows.active_learning.hitandrun import billiardwalk
+from hitandrun import billiardwalk
 
 from tensorflow import keras
 from tensorflow.keras.callbacks import CSVLogger, ReduceLROnPlateau, EarlyStopping
@@ -88,7 +88,7 @@ class Active_learning(object):
         self.Batch_size = int(config['NN']['Batch_size'])
         self.N_hp_sets = int(config['HYPERPARAMETERS']['N_sets'])
         self.Dropout = float(config['HYPERPARAMETERS']['Dropout'])
-        self.activation = [str(p) for p in config['WORKFLOW']['Activation'].split(',')]
+        self.activation = config['WORKFLOW']['Activation'] #[str(p) for p in config['WORKFLOW']['Activation'].split(',')]
         self.hidden_units = [int(p) for p in config['WORKFLOW']['Hidden Units'].split(',')]
         self.test_set = config['WORKFLOW']['Test_set']
         self.dim = config['WORKFLOW']['Dim']
@@ -509,75 +509,102 @@ class Active_learning(object):
 
         - Local sampling
         """
-        rnd = 250
-        print('Train surrogate model, round ',rnd,'...')
-        _, self.idnn = self.surrogate_training()(rnd,self.idnn)
-        unique_inputs = self.idnn.unique_inputs
 
-        print('Perform hyperparameter search...')
-        self.hyperparameter_search(rnd)
-        print('Load best model...')               
-        unique_inputs = self.idnn.unique_inputs
-        self.idnn = keras.models.load_model('idnn_1', custom_objects={'Transform': Transform(self.IDNN_transforms())})
-        self.idnn.unique_inputs = unique_inputs
+        # for rnd in range(self.N_rnds):
+        #     print('Begin global sampling, round ',rnd,'...')
+        #     self.global_sampling(2*rnd)
+
+        #     if rnd==1 or (rnd > 2 and not self.better_than_prev(rnd)):
+        #         print('Perform hyperparameter search...')
+        #         self.hyperparameter_search(rnd)
+        #         print('Load best model...')
+        #         self.idnn = keras.models.load_model(f'idnn_{rnd}.h5',
+        #                                             custom_objects={'Gradient': Gradient, 
+        #                                                             'Transform2': Transform2(self.IDNN_transforms())})
+
+        #     print('Train surrogate model, round ',rnd,'...')
+        #     _, self.idnn = self.surrogate_training()(rnd,self.idnn)
+
+        #     #Try to get rid of the memory leak
+        #     keras.backend.clear_session()
+        #     self.idnn = keras.models.load_model(f'idnn_{rnd}.h5',
+        #                                         custom_objects={'Gradient': Gradient, 
+        #                                                         'Transform2': Transform2(self.IDNN_transforms())})
+            
+        #     print('Begin local sampling, round ',rnd,'...')
+        #     self.local_sampling(2*rnd+1)
+
+
+
+#         rnd = 250
+#         print('Train surrogate model, round ',rnd,'...')
+#         _, self.idnn = self.surrogate_training()(rnd,self.idnn)
+#         unique_inputs = self.idnn.unique_inputs
+
+#         print('Perform hyperparameter search...')
+#         self.hyperparameter_search(rnd)
+#         print('Load best model...')               
+#         unique_inputs = self.idnn.unique_inputs
+#         self.idnn = keras.models.load_model('idnn_1', custom_objects={'Transform': Transform(self.IDNN_transforms())})
+#         self.idnn.unique_inputs = unique_inputs
         
-        import matplotlib.pyplot as plt
+#         import matplotlib.pyplot as plt
 
-        kappa_Test, eta_train, mu_train, T = loadCASMOutput(250, 7)
+#         kappa_Test, eta_train, mu_train, T = loadCASMOutput(250, 7)
 
-        print('Predicting...')
-        Tadjusted = (T - ((self.Tmax - self.Tmin)/2))/(self.Tmax - ((self.Tmax - self.Tmin)/2))
-        mu_pred = 0.01*self.idnn.predict([eta_train,eta_train,eta_train, Tadjusted, Tadjusted, Tadjusted])[1]
-        pred = plt.scatter(T, mu_pred[:,0], c = 'b')
-        train = plt.scatter(T, mu_train[:,0], c = 'r')
-#orig = plt.scatter(T, mu_orig[:,1], c = 'g')
-
-
-        plt.show()
+#         print('Predicting...')
+#         Tadjusted = (T - ((self.Tmax - self.Tmin)/2))/(self.Tmax - ((self.Tmax - self.Tmin)/2))
+#         mu_pred = 0.01*self.idnn.predict([eta_train,eta_train,eta_train, Tadjusted, Tadjusted, Tadjusted])[1]
+#         pred = plt.scatter(T, mu_pred[:,0], c = 'b')
+#         train = plt.scatter(T, mu_train[:,0], c = 'r')
+# #orig = plt.scatter(T, mu_orig[:,1], c = 'g')
 
 
-
-
-        """
-        kappa_Test, eta_train, mu_train, T = loadCASMOutput(250, 7)
-        eta_train0 = np.zeros(eta_train.shape)
-        g_train0 = np.zeros((eta_train.shape[0],1))
+#         plt.show()
 
 
 
-        self.idnn.compile(loss=['mse','mse', None],loss_weights=[ .01, 10, None],optimizer=tf.keras.optimizers.SGD(learning_rate=0.00001))
-        Tadjusted = T -((T.max() - T.min())/2 + T.min())
-        Tadjusted = Tadjusted/(Tadjusted.max())
+
+#         """
+#         kappa_Test, eta_train, mu_train, T = loadCASMOutput(250, 7)
+#         eta_train0 = np.zeros(eta_train.shape)
+#         g_train0 = np.zeros((eta_train.shape[0],1))
 
 
-        adjusted = np.zeros((2,7))
-        adjusted[1,0] = 20000
-        adjusted[1,1] = 500000
 
-        for i in range(2):
-            adjusted[0, i] = ((mu_train[:,i].max() - mu_train[:,i].min())/2 + mu_train[:,i].min())
-            mu_train[:,i] = mu_train[:,i] - adjusted[0, i]
-            #adjusted[1,i] = (mu_train[:,i].max())
-            #mu_train[:,i] = 10*mu_train[:,i]/adjusted[1,i]
-            mu_train[:,i] = adjusted[1,i]*mu_train[:,i]
-        Tzero = np.zeros(T.shape)
-
-        history=self.idnn.fit([ eta_train0,eta_train, 0*eta_train, Tzero,Tadjusted, Tzero],
-                      [g_train0,mu_train,0*mu_train],
-                      epochs=10000,
-                      batch_size=20)
-
-#model.save('6_20')
-        import matplotlib.pyplot as plt
-
-        print('Predicting...')
-        mu_pred = self.idnn.predict([eta_train,eta_train,eta_train, Tadjusted, Tadjusted, Tadjusted])[1]
-        pred = plt.scatter(T, mu_pred[:,0], c = 'b')
-        train = plt.scatter(T, mu_train[:,0], c = 'r')
-#orig = plt.scatter(T, mu_orig[:,1], c = 'g')
+#         self.idnn.compile(loss=['mse','mse', None],loss_weights=[ .01, 10, None],optimizer=tf.keras.optimizers.SGD(learning_rate=0.00001))
+#         Tadjusted = T -((T.max() - T.min())/2 + T.min())
+#         Tadjusted = Tadjusted/(Tadjusted.max())
 
 
-        plt.show()"""
+#         adjusted = np.zeros((2,7))
+#         adjusted[1,0] = 20000
+#         adjusted[1,1] = 500000
+
+#         for i in range(2):
+#             adjusted[0, i] = ((mu_train[:,i].max() - mu_train[:,i].min())/2 + mu_train[:,i].min())
+#             mu_train[:,i] = mu_train[:,i] - adjusted[0, i]
+#             #adjusted[1,i] = (mu_train[:,i].max())
+#             #mu_train[:,i] = 10*mu_train[:,i]/adjusted[1,i]
+#             mu_train[:,i] = adjusted[1,i]*mu_train[:,i]
+#         Tzero = np.zeros(T.shape)
+
+#         history=self.idnn.fit([ eta_train0,eta_train, 0*eta_train, Tzero,Tadjusted, Tzero],
+#                       [g_train0,mu_train,0*mu_train],
+#                       epochs=10000,
+#                       batch_size=20)
+
+# #model.save('6_20')
+#         import matplotlib.pyplot as plt
+
+#         print('Predicting...')
+#         mu_pred = self.idnn.predict([eta_train,eta_train,eta_train, Tadjusted, Tadjusted, Tadjusted])[1]
+#         pred = plt.scatter(T, mu_pred[:,0], c = 'b')
+#         train = plt.scatter(T, mu_train[:,0], c = 'r')
+# #orig = plt.scatter(T, mu_orig[:,1], c = 'g')
+
+
+#         plt.show()"""
 
         self.T = []
         temp = (self.Tmax-self.Tmin)/(self.N_jobs)

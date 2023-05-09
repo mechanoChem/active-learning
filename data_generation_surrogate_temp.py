@@ -4,8 +4,8 @@ from tensorflow import keras
 import sys, os
 
 import numpy as np
-from mechanoChemML.src.idnn import IDNN
-from mechanoChemML.src.transform_layer import Transform
+from idnn_old import IDNN
+from transform_layer import Transform
 import json
 
 
