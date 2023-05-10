@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+import io
 import fileinput as fin
 import shutil
 from shutil import copyfile
@@ -9,7 +10,7 @@ from operator import itemgetter
 from importlib import import_module
 from time import sleep
 
-def submitHPSearch(n_sets,rnd,job_manager):
+def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, walltime, memory):
     """ A function to submit the job scripts for a each set of hyperparameters
     in the hyperparameter search in the active learning workflow.
 
@@ -24,36 +25,46 @@ def submitHPSearch(n_sets,rnd,job_manager):
     """
     if job_manager=='PC':
         from subprocess import call
-    elif job_manager == 'LSF':
-        from mechanoChemML.workflows.active_learning.LSF_manager import submitJob, waitForAll
-        specs = {'job_name':'optimizeHParameters',
-                 'queue': 'gpu_p100',
-                 'output_folder':'outputFiles'}
-    elif job_manager == 'slurm':
-        from mechanoChemML.workflows.active_learning.slurm_manager import submitJob, waitForAll
-        specs = {'job_name':'optimizeHParameters',
-                 'account': 'TG-MCH200011',
-                 'total_memory':'3G',
-                 'output_folder':'outputFiles',
-                 'queue': 'shared'}
 
+    specs = {'account': account,
+             'walltime': walltime,
+             'job_name': 'optimizeHParameters',
+             'total_memory': memory,
+             'queue': 'gpu-shared'}
+    
     # Compare n_sets of random hyperparameters; choose the set that gives the lowest l2norm
     for i in range(n_sets):
-        read = 0 # read in previous hyperparameters if read not zero
-        if (i < 5):
-            read = i+1
+        script = []
+        if job_manager != 'PC':
+            script.append('python << END')
+        script.append('import sys')
+        script.append('import numpy as np')
+        script.append('rnd = {}'.format(rnd))
+        script.append('i = {}'.format(i))
+        for command in commands:
+            script.append('{}'.format(command))
+        script.append('hidden_units, learning_rate, valid_loss = {}(rnd,i)'.format(training_func))
+        script.append('if not np.isnan(valid_loss):')
+        script.append("\tfout = open('hparameters_{}.txt','w')".format(i))
+        script.append("\tfout.write('hparameters += [[{},{},\"{}_{}\",{}]]'.format(learning_rate,hidden_units,rnd,i,valid_loss))")
+        script.append('\tfout.close()')
+        if job_manager != 'PC':
+            script.append('END')
+        if job_manager == 'PC':
+            #output = io.StringIO()
+            textfile = open("optimize_hparameters.py", "w")
+            for element in script:
+                #output.write(element + "\n")
+                textfile.write(element + "\n")
+            textfile.close()
+           # call('python' + output.read(), shell=True)
+            call('python '+ 'optimize_hparameters.py', shell=True)
+            #call('python ' + str(script), shell=True)
+        else:      
+            from mechanoChemML.workflows.active_learning.slurm_manager import numCurrentJobs, submitJob
+            submitJob(script,specs)
 
-        command = ['python '+os.path.dirname(__file__)+'/optimize_hparameters.py '+str(i)+' '+str(read)+' '+str(rnd)]
-        if job_manager=='PC':
-            call(command[0],shell=True)
-        else:            
-            submitJob(command,specs)
-
-    if job_manager!='PC':
-        waitForAll('optimizeHParameters')
-
-
-def hyperparameterSearch(rnd,N_sets,job_manager='LSF'):
+def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account, walltime, memory):
     """ A function that initializes and manages the hyperparameter search in the active learning workflow.
 
     (Still needs to be generalized).
@@ -67,12 +78,14 @@ def hyperparameterSearch(rnd,N_sets,job_manager='LSF'):
     """
     
     # Submit the training sessions with various hyperparameters
-    submitHPSearch(N_sets,rnd,job_manager)
+    submitHPSearch(N_sets,rnd,commands,training_func, job_manager, account, walltime, memory)
 
     # Wait for jobs to finish
-    #sleep(20)
-    #while ( numCurrentJobs('optimizeHParameters') > 0):
-    #    sleep(15)
+    if job_manager != 'PC':
+        from mechanoChemML.workflows.active_learning.slurm_manager import numCurrentJobs, submitJob
+        sleep(20)
+        while ( numCurrentJobs('optimizeHParameters') > 0):
+            sleep(15)
 
     # Compare n_sets of random hyperparameters; choose the set that gives the lowest l2norm
     hparameters = []
@@ -94,9 +107,10 @@ def hyperparameterSearch(rnd,N_sets,job_manager='LSF'):
     writeHP.close()
 
     # Clean up checkpoint files
-    copyfile('training/training_{}.txt'.format(sortedHP[0][2]),'training/training_{}.txt'.format(rnd))
+    #os.rename('idnn_{}_{}.h5'.format(rnd,sortedHP[0][2]),'idnn_{}.h5'.format(rnd))
     shutil.rmtree('idnn_{}'.format(rnd),ignore_errors=True)
     os.rename('idnn_{}'.format(sortedHP[0][2]),'idnn_{}'.format(rnd))
+    copyfile('training/training_{}.txt'.format(sortedHP[0][2]),'training/training_{}.txt'.format(rnd))
     for i in range(N_sets):
         shutil.rmtree('idnn_{}_{}'.format(rnd,i),ignore_errors=True)
 

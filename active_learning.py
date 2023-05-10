@@ -276,10 +276,10 @@ class Active_learning(object):
    ########################################
         ##exploit hessian values
     def hessian(self,rnd, tol):
-        kappa_test, eta, mu_load= loadCASMOutput(49,7,singleRnd=False)
+        kappa_test, eta, mu_load, T_test = loadCASMOutput(rnd,7,singleRnd=False)
         print('Predicting...')
 
-        pred = self.idnn.predict(eta)
+        pred =  self.idnn.predict([eta,eta,eta, T_test, T_test, T_test])
         free = pred[0]
         mu = pred[1]
         hessian= pred[2]
@@ -298,6 +298,7 @@ class Active_learning(object):
 
         
         eigen = eigen/np.max(np.abs(eigen),axis=0)
+        # print(kappa_test)
         I = arg_zero_eig(eigen,tol)*(eta[:,0] > .45)*(eta[:,0] < .55)
         #print(I)
         #print(kappa_test)
@@ -363,7 +364,10 @@ class Active_learning(object):
 
         ##add values from hessian
         tol = 0.035+0.001*i
-        kappa_local += self.hessian(rnd, tol)
+        hessian_values = self.hessian(rnd-1, tol)
+        print(np.shape(hessian_values))
+        print(np.shape(kappa_local))
+        kappa_local = np.vstack((kappa_local,hessian_values))
         
         # submit casm
         print('Submit jobs to CASM...')
@@ -485,11 +489,11 @@ class Active_learning(object):
                       [g_train0,100*mu_train,0*mu_train],
                       validation_split=0.25,
                       epochs=self.Epochs,
-                      batch_size=self.Batch_size)#,
-                      #callbacks=callbackslist)
+                      batch_size=self.Batch_size,
+                      callbacks=callbackslist)
 
             print('Saving IDNN...')
-            #idnn.save('idnn_{}{}'.format(rnd,set_i))
+            idnn.save('idnn_{}{}'.format(rnd,set_i))
 
             valid_loss = history.history['val_loss'][-1]
 
