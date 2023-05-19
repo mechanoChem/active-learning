@@ -220,7 +220,7 @@ class Active_learning(object):
 
     ########################################
 
-    def explore(self,rnd):
+    def explore(self,rnd,temp=300):
         
         # sample with sobol
         if self.Test_set == 'sobol':
@@ -242,24 +242,29 @@ class Active_learning(object):
             else:
                 N_b = 0
             print('Create sample set...')
+            print(self.N_global_pts)
             x_test, eta = self.create_test_set_billiardwalk(self.N_global_pts,
                                     N_boundary=N_b)
-
+            # print(eta)
+            # print(x_test)
          # define bias parameters
+        T = np.ones(eta.shape[0])*temp
+        print(T)
         if rnd==0:
             if self.Initial_mu == 'ideal':
                 mu_test = self.ideal(x_test)
             else:
                 mu_test = 0
         else:
-            T = np.zeros((eta.shape[0],1))
-            Tavg = (self.Tmax - self.Tmin)/2 + self.Tmin
-            for point in T:
-                point = Tavg
+            
+            # T = np.zeros((eta.shape[0],1))
+            # Tavg = (self.Tmax - self.Tmin)/2 + self.Tmin
+            # for point in T:
+            #     point = Tavg
             mu_test = self.idnn.predict([eta,eta,eta,T,T,T])[1]
-            mu_test[:,0] =  mu_test[:,0]*1/self.adjustedx
-            for i in range(6):
-                mu_test[:,i+1] = mu_test[:,i+1]/self.adjustedn
+            # mu_test[:,0] =  mu_test[:,0]*1/self.adjustedx
+            # for i in range(6):
+            #     mu_test[:,i+1] = mu_test[:,i+1]/self.adjustedn
         
         kappa = eta + 0.5*mu_test/self.phi
         
@@ -267,10 +272,11 @@ class Active_learning(object):
             kappa = self.sample_wells(kappa,rnd)   
 
         # submit casm
+
         print('Submit jobs to CASM...')
-        submitCASM(self.N_jobs,self.phi,kappa,self.T,rnd,self.Account,self.Walltime,self.Mem,casm_project_dir=self.casm_project_dir,test=self.test,job_manager=self.job_manager,casm_version=self.CASM_version, data_generation=self.data_generation)
+        submitCASM(self.N_jobs,self.phi,kappa,T,rnd,self.Account,self.Walltime,self.Mem,casm_project_dir=self.casm_project_dir,test=self.test,job_manager=self.job_manager,casm_version=self.CASM_version, data_generation=self.data_generation)
         print('Compile output...')
-        compileCASMOutput(rnd, self.CASM_version, self.dim)            
+        compileCASMOutput(rnd, self.CASM_version, self.dim,temp)            
 
 
    ########################################
@@ -321,9 +327,11 @@ class Active_learning(object):
         # local error
         print('Loading data...')
         kappa_test, eta_test, mu_test, T_test = loadCASMOutput(rnd-1,self.dim,singleRnd=True)
-        T_test = (T_test - ((self.Tmax - self.Tmin)/2))/(self.Tmax - ((self.Tmax - self.Tmin)/2))
+
+        ##Normalizing T to make it easier to train
+        T_test_adjust = (T_test - ((self.Tmax - self.Tmin)/2))/(self.Tmax - ((self.Tmax - self.Tmin)/2))
         print('Predicting...')
-        mu_pred = self.idnn.predict([eta_test,eta_test,eta_test, T_test, T_test, T_test])[1]
+        mu_pred = self.idnn.predict([eta_test,eta_test,eta_test, T_test_adjust, T_test_adjust, T_test_adjust])[1]
 
         mu_pred[:,0] =  mu_pred[:,0]/self.adjustedx
         for i in range(6):
@@ -331,16 +339,17 @@ class Active_learning(object):
 
         print('Finding high pointwise error...')
         error = np.sum((mu_pred - mu_test)**2,axis=1)
-        kappaE =  kappa_test[np.argsort(error)[::-1]]
+        points = np.hstack((kappa_test, T_test))
+        higherror =  points[np.argsort(error)[::-1],:]
         
         
         # randomly perturbed samples
         if self.test:
-            kappa_a = np.repeat(kappaE[:3],3,axis=0)
-            kappa_b = np.repeat(kappaE[3:6],2,axis=0)
+            kappa_a = np.repeat(points[:3,:],3,axis=0)
+            kappa_b = np.repeat(points[3:6,:],2,axis=0)
         else:
-            kappa_a = np.repeat(kappaE[:200],3,axis=0)
-            kappa_b = np.repeat(kappaE[200:400],2,axis=0)
+            kappa_a = np.repeat(points[:200],3,axis=0)
+            kappa_b = np.repeat(points[200:400],2,axis=0)
 
         # sample wells 
         if 'exploit' in self.Sample_wells:
@@ -359,19 +368,19 @@ class Active_learning(object):
         else:
             kappa_local = np.vstack((kappa_a,kappa_b))
         
-        
+        Temp = kappa_local[:,self.dim]
+        kappa_local = kappa_local[:,0:self.dim]
         kappa_local += 0.02*2.*(np.random.rand(*kappa_local.shape)-0.5) #perturb points randomly
-
         ##add values from hessian
-        tol = 0.035+0.001*i
-        hessian_values = self.hessian(rnd-1, tol)
-        print(np.shape(hessian_values))
-        print(np.shape(kappa_local))
-        kappa_local = np.vstack((kappa_local,hessian_values))
+        # tol = 0.035+0.001*i
+        # hessian_values = self.hessian(rnd-1, tol)
+        # print(np.shape(hessian_values))
+        # print(np.shape(kappa_local))
+        # kappa_local = np.vstack((kappa_local,hessian_values))
         
         # submit casm
         print('Submit jobs to CASM...')
-        submitCASM(self.N_jobs,self.phi,kappa_local,self.T,rnd,self.Account,self.Walltime,self.Mem,casm_project_dir=self.casm_project_dir,test=self.test,job_manager=self.job_manager,casm_version=self.CASM_version, data_generation=self.data_generation)
+        submitCASM(self.N_jobs,self.phi,kappa_local,Temp,rnd,self.Account,self.Walltime,self.Mem,casm_project_dir=self.casm_project_dir,test=self.test,job_manager=self.job_manager,casm_version=self.CASM_version, data_generation=self.data_generation)
         print('Compile output...')
         compileCASMOutput(rnd, self.CASM_version, self.dim)   
 
@@ -612,11 +621,13 @@ class Active_learning(object):
 
         self.T = []
         temp = (self.Tmax-self.Tmin)/(self.N_jobs)
-        for i in range(10):
+        for i in range(3):
             self.T.append(self.Tmin + i*temp)
+        
         for rnd in range(self.N_rnds):
             print('Begin global sampling, round ',rnd,'...')
-            self.explore(2*rnd)
+            for temp in self.T:
+                self.explore(2*rnd,temp)
 
             if rnd==1:
                 print('Perform hyperparameter search...')

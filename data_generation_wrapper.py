@@ -11,6 +11,8 @@ from shutil import copyfile
 
 def submitCASM(N_jobs,phi,kappa,Tlist,rnd, account, walltime, mem, casm_project_dir='.', test=False, job_manager='slurm', casm_version='LCO', data_generation=[]):
 
+    print(test)
+    test=False
     # Calculate and write out the predicted kappa values to the CASM input files
     n = len(kappa)
     phi = np.array(n*[phi])
@@ -24,29 +26,36 @@ def submitCASM(N_jobs,phi,kappa,Tlist,rnd, account, walltime, mem, casm_project_
              
         tmpl = json.load(tmplFile)
         for job in range(N_jobs):
-            T = Tlist[job]
+            # T = Tlist[job]
             shutil.rmtree('job_{}'.format(job+1),ignore_errors=True)
             os.mkdir('job_{}'.format(job+1))
 
             inputF = copy.deepcopy(tmpl)
-            for T in range(len(Tlist)):
-                for i in range(1,len(kappa),1):
-                    phiA = {}
-                    kappaA = {}
-                    if casm_version == 'NiAl':
-                        inputF['driver']['conditions_list']+=[{'tolerance': 0.001,
+
+
+            # for T in Tlist:
+            for i in range(job,len(kappa),N_jobs):
+                phiA = {}
+                kappaA = {}
+                if casm_version == 'NiAl':
+                    inputF['driver']['conditions_list']+=[{'tolerance': 0.001,
+                                                    'temperature': T,
+                                                    'phi': phi[i],
+                                                    'kappa': kappa[i]}]
+                elif casm_version == 'LCO':
+                    for j in range(len(kappa[0])):
+                        phiA[str(j)] = float(phi[i,j])
+                        kappaA[str(j)] = float(kappa[i,j])
+                    T = Tlist[i]
+                    # if ~isinstance(T,str):
+                    #     T = str(T)
+                    inputF['driver']['custom_conditions']+=[{'tolerance': 0.001,
                                                         'temperature': T,
-                                                        'phi': phi[i],
-                                                        'kappa': kappa[i]}]
-                    elif casm_version == 'LCO':
-                        for j in range(len(kappa[0])):
-                            phiA[str(j)] = float(phi[i,j])
-                            kappaA[str(j)] = float(kappa[i,j])
-                        inputF['driver']['custom_conditions']+=[{'tolerance': 0.001,
-                                                            'temperature': T,
-                                                            'bias_phi': phiA,
-                                                            'bias_kappa': kappaA,
-                                                            'param_chem_pot': {'a': 0}}]
+                                                        'bias_phi': phiA,
+                                                        'bias_kappa': kappaA,
+                                                        'param_chem_pot': {'a': 0}}]
+            # print(inputF)
+            # inputF  = str(inputF)
             with open('job_{0}/monte_settings_{0}.json'.format(job+1),'w') as outFile:
                 json.dump(inputF,outFile,indent=4)
     string = ""
@@ -61,11 +70,11 @@ def submitCASM(N_jobs,phi,kappa,Tlist,rnd, account, walltime, mem, casm_project_
                 command.append('cd job_{}; python -u {}/data_generation_surrogate_temp.py monte_settings_{}.json {}; cd ../'.format(job+1,os.path.dirname(__file__), job+1, string))
         elif job_manager == 'LSF':
             command = ['cd job_$LSB_JOBINDEX',
-                       'python -u {}/data_generation_surrogate.py monte_settings_$LSB_JOBINDEX.json {}'.format(os.path.dirname(__file__), string),
+                       'python -u {}/data_generation_surrogate_temp.py monte_settings_$LSB_JOBINDEX.json {}'.format(os.path.dirname(__file__), string),
                        'cd ../'] 
         elif job_manager == 'slurm':
             command = ['cd job_$SLURM_ARRAY_TASK_ID',
-                       'python -u {}/data_generation_surrogate.py monte_settings_$SLURM_ARRAY_TASK_ID.json {}'.format(os.path.dirname(__file__), string),
+                       'python -u {}/data_generation_surrogate_temp.py monte_settings_$SLURM_ARRAY_TASK_ID.json {}'.format(os.path.dirname(__file__), string),
                        'cd ../']
     else:
         if job_manager == 'PC':
@@ -78,11 +87,10 @@ def submitCASM(N_jobs,phi,kappa,Tlist,rnd, account, walltime, mem, casm_project_
                     'cd ../',
                     'mv job_$LSB_JOBINDEX $cwd']
         elif job_manager == 'slurm':
-            command = ['. /cm/shared/apps/spack/cpu/opt/spack/linux-centos8-zen2/gcc-10.2.0/anaconda3-2020.11-weucuj4yrdybcuqro5v3mvuq3po7rhjt/etc/profile.d/conda.sh',
-                    'conda deactivate',
-                    'module reset',
+            print('test')
+            command = ['module reset',
+                    'module load cpu/0.15.4',
                     'module load anaconda3',
-                    'module load openmpi/4.0.4-nocuda',
                     '. $ANACONDA3HOME/etc/profile.d/conda.sh',
                     'conda activate /home/jholber/.conda/envs/casm',
                     'cwd=$PWD',
@@ -98,31 +106,39 @@ def submitCASM(N_jobs,phi,kappa,Tlist,rnd, account, walltime, mem, casm_project_
             call(command[job],shell=True)
     else:
         if job_manager == 'LSF':
-            from mechanoChemML.workflows.active_learning.LSF_manager import submitJob, waitForAll
+            from LSF_manager import submitJob, waitForAll
             specs = {'job_name':'CASM_[1-{}]'.format(N_jobs),
                     'queue': 'gpu_p100',
                     'output_folder':'outputFiles'}
             name = 'CASM*'
+            submitJob(command,specs)
+            waitForAll(name)
         elif job_manager == 'slurm':
-            from mechanoChemML.workflows.active_learning.slurm_manager import submitJob, waitForAll
+            from slurm_manager import submitJob, waitForAll
             specs = {'job_name':'CASM',
                     'array': '1-{}'.format(N_jobs),
                     'account': account,
                     'walltime': walltime,
                     'total_memory':mem,
                     'output_folder':'outputFiles',
-                    'queue': 'gpu-shared'}
+                    'queue': 'shared'}
             name = 'CASM'            
-        submitJob(command,specs)
-        waitForAll(name)
+            submitJob(command,specs)
+            waitForAll(name)
 
 
-def compileCASMOutput(rnd, casm_version, len):
+def compileCASMOutput(rnd, casm_version, len,temp=''):
     kappa = []
     eta = []
     phi = []
     T = []
-    os.mkdir(f'round_{rnd}')
+    # if not os.path.exists(f'round_{rnd}'):
+    dirname = "round_"+str(rnd)
+    if temp!='':
+        dirname = dirname + "_" + str(temp)
+    os.mkdir(dirname)
+    # else:
+    #     os.mkdir(f'round_{rnd}_{temp}')
     for dir in os.listdir('.'):
         if 'job' in dir:
             if os.path.exists(dir+'/results.json'):
@@ -137,7 +153,8 @@ def compileCASMOutput(rnd, casm_version, len):
                         eta += np.array([data['<order_param({})>'.format(i)] for i in range(len)]).T.tolist()
                         phi += np.array([data['Bias_phi({})'.format(i)] for i in range(len)]).T.tolist()
                     T += np.array([data['T']]).T.tolist()
-                shutil.move(dir,f'round_{rnd}')
+
+                shutil.move(dir,dirname)
 
     kappa = np.array(kappa)
     eta = np.array(eta)
@@ -174,7 +191,7 @@ def loadCASMOutput(rnd,dim,singleRnd=False):
         kappa = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,:dim]
         eta = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,dim:2*dim]
         mu = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,-dim:]
-        T = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,2*dim:2*dim+1]
+        T = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,-dim-1:-dim]
     else:
         kappa = np.genfromtxt('data/allResults'+str(rnd)+'.txt',dtype=np.float32)[:,:dim]
         eta = np.genfromtxt('data/allResults'+str(rnd)+'.txt',dtype=np.float32)[:,dim:2*dim]
