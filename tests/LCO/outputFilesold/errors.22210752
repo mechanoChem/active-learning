@@ -1,0 +1,16 @@
+Resetting modules to system default. Reseting $MODULEPATH back to system default. All extra directories will be removed from $MODULEPATH.
+Lmod has detected the following error: These module(s) or extension(s) exist
+but cannot be loaded as requested: "anaconda3"
+   Try: "module spider anaconda3" to see how to load the module(s).
+
+
+
+Lmod has detected the following error: These module(s) or extension(s) exist
+but cannot be loaded as requested: "openmpi/4.0.4-nocuda"
+   Try: "module spider openmpi/4.0.4-nocuda" to see how to load the module(s).
+
+
+
+/cm/local/apps/slurm/var/spool/job22210752/slurm_script: line 21: /etc/profile.d/conda.sh: No such file or directory
+-- Error: No casm project found -- 
+

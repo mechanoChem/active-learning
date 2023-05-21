@@ -1,0 +1,26 @@
+#!/bin/bash
+#
+#SBATCH -t 12:00:00                  # wall time
+#SBATCH -A 'mia341'                  # account
+#SBATCH --nodes 1                  
+#SBATCH --ntasks-per-node=1                  
+#SBATCH --mem='10G'
+#SBATCH -J CASM    # job name
+#SBATCH --array=1-2                  # job array
+#SBATCH -e outputFiles/errors.%J       # error file name in which %J is replaced by the job ID 
+#SBATCH -o outputFiles/output.%J       # output file name in which %J is replaced by the job ID
+#SBATCH -p shared                       # choose the queue (partition) to use
+
+#SBATCH --export=ALL
+
+module reset
+module load cpu/0.15.4
+module load anaconda3
+. $ANACONDA3HOME/etc/profile.d/conda.sh
+conda activate /home/jholber/.conda/envs/casm
+cwd=$PWD
+mv job_$SLURM_ARRAY_TASK_ID /home/jholber/CASM_sampling/O3_LCO_expanse
+cd /home/jholber/CASM_sampling/O3_LCO_expanse/job_$SLURM_ARRAY_TASK_ID
+casm monte -s monte_settings_$SLURM_ARRAY_TASK_ID.json
+cd ../
+mv job_$SLURM_ARRAY_TASK_ID $cwd

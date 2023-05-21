@@ -1,0 +1,2 @@
+learning_rate,hidden_units,round/set,l2norm
+0.021495670080184937,[99, 99],"1_2",31.1838436126709

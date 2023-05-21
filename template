@@ -1,0 +1,59 @@
+active_learning/ (or a specific name)
+│
+├── docs/
+│   ├── doc1.md
+│   └── doc2.md
+│
+├── active_learning/ (same name as the above)
+│   ├── __init__.py
+│   ├── workflow/ (or everything in active_learning/ and no workflow sub directory)
+│   │   ├── __init__.py
+│   │   ├── workflow.py - have explore/explit as separate functions
+│   │   ├── fit.py
+│   │   ├── predict.py
+│   │   └── helpers.py
+│   │   └── constucting_dictionary.py
+│   │
+│   └── data_recommended/
+│   │   ├── __init__.py
+│   │   ├── data_recommender.py (the general class)
+│   │   ├── hessian.py
+│   │   └── fixed.py
+│   │   └── high_error.py
+│   │   └── helpers.py
+│   └── data_collector/
+│   │   ├── __init__.py
+│   │   ├── sampling.py (the general class)
+│   │   ├── helpers.py
+│   │   └── fixed.py
+│   └── visualization/
+│   │   ├── __init__.py
+│   │   ├── visualize.py (the general class)
+│   │   ├── helpers.py
+│   └── model/
+│       ├── __init__.py
+│       ├── model.py (the general class)
+│       ├── toy.py
+│       ├── idnn.py
+│       ├── inference.py
+│       ├── custom.py
+│       └── helpers.py
+├── data/
+│   ├── input.csv
+│   └── model/
+│   └── data_recommended/
+│   └── data_collection/
+│   └── visualization/
+│
+├── tests/ (or examples/)
+│   ├── toy
+│   │   ├── helpers_tests.py
+│   │   └── toy_test.py
+│   │
+│   └── LCO/
+│       ├── helpers_tests.py
+│       └── LCO_test.py
+│
+├── .gitignore
+├── LICENSE
+└── README.md

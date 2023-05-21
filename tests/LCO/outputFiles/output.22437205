@@ -1,0 +1,195 @@
+-- Construct: CASM Project -- 
+from: "/home/jholber/CASM_sampling/O3_LCO_expanse"
+
+-- Load project data -- 
+read: "/home/jholber/CASM_sampling/O3_LCO_expanse/.casm/composition_axes.json"
+read: "/home/jholber/CASM_sampling/O3_LCO_expanse/training_data/settings/calctype.default/ref.default/chemical_reference.json"
+read: "/home/jholber/CASM_sampling/O3_LCO_expanse/training_data/SCEL"
+read: "/home/jholber/CASM_sampling/O3_LCO_expanse/.casm/config_list.json"
+
+-- Read: Monte Carlo settings -- 
+from: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/monte_settings_2.json"
+ensemble: GrandCanonical
+method: Metropolis
+
+-- Construct: Grand Canonical Monte Carlo -- 
+project: "/home/jholber/CASM_sampling/O3_LCO_expanse"
+formation_energy cluster expansion: formation_energy
+      property: formation_energy
+      calctype: default
+           ref: default
+          bset: default
+           eci: default
+supercell: 
+ 24  12   0
+  0  12  24
+  0 -12   0
+use_deltas: true
+
+Sampling: 
+                quantity     requested_precision
+           atom_frac(Co)                    none
+           atom_frac(Li)                    none
+            atom_frac(O)                    none
+                 comp(a)                    none
+              comp_n(Co)                    none
+              comp_n(Li)                    none
+               comp_n(O)                    none
+              comp_n(Va)                    none
+                 corr(0)                    none
+                 corr(1)                    none
+                 corr(2)                    none
+                 corr(3)                    none
+                 corr(5)                    none
+                 corr(6)                    none
+                 corr(8)                    none
+                corr(10)                    none
+                corr(22)                    none
+                corr(28)                    none
+                corr(55)                    none
+                corr(73)                    none
+                corr(95)                    none
+                corr(99)                    none
+               corr(112)                    none
+               corr(139)                    none
+               corr(149)                    none
+               corr(154)                    none
+               corr(171)                    none
+               corr(172)                    none
+               corr(173)                    none
+               corr(176)                    none
+               corr(178)                    none
+               corr(179)                    none
+               corr(189)                    none
+               corr(190)                    none
+               corr(191)                    none
+               corr(192)                    none
+               corr(206)                    none
+               corr(207)                    none
+               corr(210)                    none
+               corr(214)                    none
+               corr(215)                    none
+               corr(216)                    none
+               corr(219)                    none
+        formation_energy                    none
+          order_param(0)                   0.001
+          order_param(1)                   0.001
+          order_param(2)                   0.001
+          order_param(3)                   0.001
+          order_param(4)                   0.001
+          order_param(5)                   0.001
+          order_param(6)                   0.001
+        potential_energy                    none
+           site_frac(Co)                    none
+           site_frac(Li)                    none
+            site_frac(O)                    none
+           site_frac(Va)                    none
+
+automatic convergence mode?: true
+
+Bias settings: Order_param
+-- Check: For existing calculations -- 
+did not find existing calculations
+
+-- Set: Conditions -- 
+T: 350
+bias_phi: [ 10.000000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000 ]
+bias_kappa: [ 0.479035643918, -0.018836965107, -0.097423713287, -0.072167328622, -0.016640529686, 0.024888747695, 0.147701294402 ]
+param_chem_pot: [ 0.000000000000 ]
+
+-- Set: DoF -- 
+motif configname: restricted_auto
+searching for minimum potential energy motif...
+using conditions: 
+T: 350
+bias_phi: [ 10.000000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000 ]
+bias_kappa: [ 0.479035643918, -0.018836965107, -0.097423713287, -0.072167328622, -0.016640529686, 0.024888747695, 0.147701294402 ]
+param_chem_pot: [ 0.000000000000 ]
+
+using: SCEL2_2_1_1_0_1_1/0 with potential energy: 56.315302
+
+-- Write: DoF -- 
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/conditions.0/initial_state.json"
+
+-- Begin: Conditions 0 -- 
+
+-- End: Conditions 0 -- 
+run time: 82.199256 (s),  0.041099628 (s/pass),  5.9461267e-06(s/step)
+
+-- Write: DoF -- 
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/conditions.0/final_state.json"
+
+-- Write: Output files -- 
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/results.json"
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/conditions.0/conditions.json"
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/conditions.0/observations.json.gz"
+
+
+-- Set: Conditions -- 
+T: 350
+bias_phi: [ 10.000000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000 ]
+bias_kappa: [ 0.494144647406, -0.010957217867, 0.025239147696, -0.055973965786, 0.077809808042, 0.241686950175, -0.036818592601 ]
+param_chem_pot: [ 0.000000000000 ]
+
+-- Set: DoF -- 
+motif configname: restricted_auto
+searching for minimum potential energy motif...
+using conditions: 
+T: 350
+bias_phi: [ 10.000000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000 ]
+bias_kappa: [ 0.494144647406, -0.010957217867, 0.025239147696, -0.055973965786, 0.077809808042, 0.241686950175, -0.036818592601 ]
+param_chem_pot: [ 0.000000000000 ]
+
+using: SCEL8_8_1_1_0_6_1/10 with potential energy: 26.38247
+
+-- Write: DoF -- 
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/conditions.1/initial_state.json"
+
+-- Begin: Conditions 1 -- 
+
+-- End: Conditions 1 -- 
+run time: 81.89088 (s),  0.04094544 (s/pass),  5.9238194e-06(s/step)
+
+-- Write: DoF -- 
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/conditions.1/final_state.json"
+
+-- Write: Output files -- 
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/results.json"
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/conditions.1/conditions.json"
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/conditions.1/observations.json.gz"
+
+
+-- Set: Conditions -- 
+T: 350
+bias_phi: [ 10.000000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000 ]
+bias_kappa: [ 0.369113663034, -0.013865146447, -0.039545483084, 0.106350957052, 0.031807298928, 0.109310442564, 0.068234334959 ]
+param_chem_pot: [ 0.000000000000 ]
+
+-- Set: DoF -- 
+motif configname: restricted_auto
+searching for minimum potential energy motif...
+using conditions: 
+T: 350
+bias_phi: [ 10.000000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000, 0.100000000000 ]
+bias_kappa: [ 0.369113663034, -0.013865146447, -0.039545483084, 0.106350957052, 0.031807298928, 0.109310442564, 0.068234334959 ]
+param_chem_pot: [ 0.000000000000 ]
+
+using: SCEL3_3_1_1_0_0_1/1 with potential energy: 109.55032
+
+-- Write: DoF -- 
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/conditions.2/initial_state.json"
+
+-- Begin: Conditions 2 -- 
+
+-- End: Conditions 2 -- 
+run time: 82.591824 (s),  0.041295912 (s/pass),  5.9745243e-06(s/step)
+
+-- Write: DoF -- 
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/conditions.2/final_state.json"
+
+-- Write: Output files -- 
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/results.json"
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/conditions.2/conditions.json"
+write: "/home/jholber/CASM_sampling/O3_LCO_expanse/job_2/conditions.2/observations.json.gz"
+
+

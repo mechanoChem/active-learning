@@ -1,0 +1,165 @@
+{
+    "comment": "This is a sample input file. Unrecognized attributes (like the ones prepended with '_') are ignored.",
+    "debug": false,
+    "ensemble": "grand_canonical",
+    "method": "metropolis",
+    "bias": "order_param",
+    "model": {
+        "formation_energy": "formation_energy"
+    },
+    "supercell": [
+        [
+            24,
+            12,
+            0
+        ],
+        [
+            0,
+            12,
+            24
+        ],
+        [
+            0,
+            -12,
+            0
+        ]
+    ],
+    "data": {
+        "sample_by": "pass",
+        "sample_period": 1,
+        "_N_sample": 1000,
+        "_N_pass": 1000,
+        "_N_step": 1000,
+        "max_pass": 50000,
+        "min_pass": 2000,
+        "_max_step": 10000,
+        "_max_sample": 500,
+        "_min_sample": 100,
+        "confidence": 0.95,
+        "measurements": [
+            {
+                "quantity": "formation_energy"
+            },
+            {
+                "quantity": "potential_energy"
+            },
+            {
+                "quantity": "atom_frac"
+            },
+            {
+                "quantity": "site_frac"
+            },
+            {
+                "quantity": "order_param",
+                "precision": 0.001
+            },
+            {
+                "quantity": "comp_n"
+            },
+            {
+                "quantity": "non_zero_eci_correlations"
+            }
+        ],
+        "storage": {
+            "write_observations": true,
+            "write_trajectory": false,
+            "output_format": [
+                "json"
+            ]
+        },
+        "_enumeration": {
+            "check": "eq(1,1)",
+            "metric": "clex_hull_dist(ALL)",
+            "insert_canonical": true,
+            "check_existence": true,
+            "N_halloffame": 100,
+            "sample_mode": "on_sample"
+        }
+    },
+    "driver": {
+        "mode": "custom",
+        "dependent_runs": false,
+        "motif": {
+            "configname": "restricted_auto",
+            "_configname": "SCEL3_3_1_1_0_2_2/0",
+            "configdof": "path/to/final_state.json"
+        },
+        "custom_conditions": [
+            {
+                "tolerance": 0.001,
+                "temperature": 350.0,
+                "bias_phi": {
+                    "0": 10.0,
+                    "1": 0.1,
+                    "2": 0.1,
+                    "3": 0.1,
+                    "4": 0.1,
+                    "5": 0.1,
+                    "6": 0.1
+                },
+                "bias_kappa": {
+                    "0": 0.4790356439179161,
+                    "1": -0.018836965107235572,
+                    "2": -0.09742371328670729,
+                    "3": -0.07216732862213912,
+                    "4": -0.016640529686180742,
+                    "5": 0.02488874769535096,
+                    "6": 0.14770129440155622
+                },
+                "param_chem_pot": {
+                    "a": 0
+                }
+            },
+            {
+                "tolerance": 0.001,
+                "temperature": 350.0,
+                "bias_phi": {
+                    "0": 10.0,
+                    "1": 0.1,
+                    "2": 0.1,
+                    "3": 0.1,
+                    "4": 0.1,
+                    "5": 0.1,
+                    "6": 0.1
+                },
+                "bias_kappa": {
+                    "0": 0.494144647405931,
+                    "1": -0.010957217866967267,
+                    "2": 0.0252391476960409,
+                    "3": -0.055973965786434404,
+                    "4": 0.0778098080417507,
+                    "5": 0.24168695017541644,
+                    "6": -0.036818592600591095
+                },
+                "param_chem_pot": {
+                    "a": 0
+                }
+            },
+            {
+                "tolerance": 0.001,
+                "temperature": 350.0,
+                "bias_phi": {
+                    "0": 10.0,
+                    "1": 0.1,
+                    "2": 0.1,
+                    "3": 0.1,
+                    "4": 0.1,
+                    "5": 0.1,
+                    "6": 0.1
+                },
+                "bias_kappa": {
+                    "0": 0.36911366303411225,
+                    "1": -0.013865146446718171,
+                    "2": -0.039545483084377414,
+                    "3": 0.10635095705184672,
+                    "4": 0.03180729892825442,
+                    "5": 0.10931044256357275,
+                    "6": 0.06823433495934278
+                },
+                "param_chem_pot": {
+                    "a": 0
+                }
+            }
+        ]
+    }
+}
