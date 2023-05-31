@@ -16,23 +16,63 @@ from configparser import ConfigParser
 import tensorflow.keras.backend as K
 from tensorflow.keras.layers import Lambda
 from numpy import linalg as LA
+import helperfunctions
 
 
 class DataRecommender():
 
-    def __init__(self,config_path): 
-        ## determine dictionary ie 
+    def __init__(self,idnn,dictionary): 
+        ## determine sdictionary ie 
         self.wells= #something
+        self.N_global_pts
+        self.idnn = idnn
 
-    def read():
 
-    def write():
+    # def read():
 
-    def print():
+    # def write():
+
+    # def print():
+
+
+    def find_wells(self,x,dim=4,bounds=[0,0.25],rereference=True):
+
+    # Find "wells" (regions of convexity, with low gradient norm)
+
+    # First, rereference the free energy
+        if self.idnn.unique_inputs:
+            pred = self.idnn.predict([x,x,x])
+        else:
+            pred = self.idnn.predict(x)
+        mu_test = 0.01*pred[1]
+        if rereference:
+            eta_test = np.array([bounds[0]*np.ones(dim),
+                                bounds[1]*np.ones(dim)])
+            if self.idnn.unique_inputs:
+                y = 0.01*self.idnn.predict([eta_test,eta_test,eta_test])[0]
+            else:
+                y = 0.01*self.idnn.predict(eta_test)[0]
+            g0 = y[0,0]
+            g1 = y[1,0]
+            mu_test[:,0] = mu_test[:,0] - 1./bounds[1]*(g1 - g0)
+        gradNorm = np.sqrt(np.sum(mu_test**2,axis=-1))
+
+        H = pred[2] # get the list of Hessian matrices
+        ind2 = convexMult(H) # indices of points with local convexity
+        eta = x[ind2]
+        gradNorm = gradNorm[ind2]
+
+        ind3 = np.argsort(gradNorm)
+        
+        # Return eta values with local convexity, sorted by gradient norm (low to high)
+
+        return eta[ind3]
+
 
 
     
-    def sample_wells(self, kappa,rnd):
+    def sample_wells(self, rnd,N_w):
+        # N_w Number of random points per vertex
         print('Sampling wells and end members...')
         etaW = self.Wells
         T = np.zeros((self.N_global_pts))
@@ -48,13 +88,16 @@ class DataRecommender():
             for i in range(6):
                 muW[:,i+1] = muW[:,i+1]/self.adjustedn
             kappaW = etaW + 0.5*muW/self.phi
-        N_w = 25
-        if self.test:
-            N_w = 2
+  
         kappaW = np.repeat(kappaW,N_w,axis=0)
         kappaW  += 0.15*(np.random.rand(*kappaW.shape)-0.5)
+        return kappaW 
 
         # Sample between wells
+        
+        
+        
+    def sample_vertices(self,rnd,N_w2):
         # Get vertices
         etaB = self.Vertices
         #print(etaB)
@@ -67,78 +110,55 @@ class DataRecommender():
                 muB[:,i+1] = muB[:,i+1]/self.adjustedn
             kappaB = etaB + 0.5*muB/self.phi
 
-
-
-        N_w2 = 20 # Number of random points per vertex
-        if self.test:
-            N_w2 = 2
         kappaW2 = np.zeros((2*(self.dim-1)*N_w2,self.dim))
         kappaW2[:,0] = kappaB[0,0]
         kappaW2 += 0.05*(np.random.rand(*kappaW2.shape)-0.5) # Small random perterbation
         for i in range(1,self.dim):
             for j in range(2*N_w2):
                 kappaW2[2*(i-1)*N_w2 + j,i] = np.random.rand()*(kappaB[2*i-2,i] - kappaB[2*i-1,i]) + kappaB[2*i-1,i] # Random between positive and negative well
-
-        kappa = np.vstack((kappa,kappaW,kappaW2))
-        return kappa 
+        return kappaW2
     
-        def explore(self,rnd,temp=300):
+    def explore(self,rnd,test_set, x_bounds=[], temp=300):
         
         # sample with sobol
-        if self.Test_set == 'sobol':
+        if test_set == 'sobol':
+            delta = (x_bounds[1] - x_bounds[0])*.05
             if rnd==0:
-                x_bounds = [1.e-5,1-1.e-5]
+                x_bounds = [x_bounds[0]+ delta,x_bounds[1]-delta]
             elif rnd<6:
-                x_bounds = [-0.05,1.05]
+                x_bounds = [x_bounds[0]- delta,x_bounds[1]+delta]
             else:
-                x_bounds = [0.,1.]
+                x_bounds = [x_bounds[0],bounds[1]]
+            print('Create sample set...')
             x_test,eta,self.seed = self.create_test_set_sobol(self.N_global_pts,
                                                         self.dim,
                                                         bounds=x_bounds,
                                                         seed=self.seed)
 
-        if self.Test_set == 'billiardwalk':
+        if test_set == 'billiardwalk':
        # sample quasi-uniformly
             if rnd<6:
                 N_b = int(self.N_global_pts/4)
             else:
                 N_b = 0
             print('Create sample set...')
-            print(self.N_global_pts)
             x_test, eta = self.create_test_set_billiardwalk(self.N_global_pts,
                                     N_boundary=N_b)
-            # print(eta)
-            # print(x_test)
-         # define bias parameters
+
+
+
         T = np.ones(eta.shape[0])*temp
-        print(T)
         if rnd==0:
             if self.Initial_mu == 'ideal':
                 mu_test = self.ideal(x_test)
             else:
                 mu_test = 0
         else:
-            
-            # T = np.zeros((eta.shape[0],1))
-            # Tavg = (self.Tmax - self.Tmin)/2 + self.Tmin
-            # for point in T:
-            #     point = Tavg
             mu_test = self.idnn.predict([eta,eta,eta,T,T,T])[1]
-            # mu_test[:,0] =  mu_test[:,0]*1/self.adjustedx
-            # for i in range(6):
-            #     mu_test[:,i+1] = mu_test[:,i+1]/self.adjustedn
         
         kappa = eta + 0.5*mu_test/self.phi
-        
-        if 'Guided' in self.Sample_wells:
-            kappa = self.sample_wells(kappa,rnd)   
 
-        # submit casm
-
-        print('Submit jobs to CASM...')
-        submitCASM(self.N_jobs,self.phi,kappa,T,rnd,self.Account,self.Walltime,self.Mem,casm_project_dir=self.casm_project_dir,test=self.test,job_manager=self.job_manager,casm_version=self.CASM_version, data_generation=self.data_generation)
-        print('Compile output...')
-        compileCASMOutput(rnd, self.CASM_version, self.dim,temp)            
+        return kappa          
 
 
    ########################################
@@ -184,7 +204,7 @@ class DataRecommender():
         return kappa_local  
     ########################################
     
-    def exploit(self,rnd):
+    def high_error(self,rnd):
         
         # local error
         print('Loading data...')
@@ -240,8 +260,3 @@ class DataRecommender():
         # print(np.shape(kappa_local))
         # kappa_local = np.vstack((kappa_local,hessian_values))
         
-        # submit casm
-        print('Submit jobs to CASM...')
-        submitCASM(self.N_jobs,self.phi,kappa_local,Temp,rnd,self.Account,self.Walltime,self.Mem,casm_project_dir=self.casm_project_dir,test=self.test,job_manager=self.job_manager,casm_version=self.CASM_version, data_generation=self.data_generation)
-        print('Compile output...')
-        compileCASMOutput(rnd, self.CASM_version, self.dim)   

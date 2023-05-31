@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import sys, os
 import tensorflow as tf
-import workflow
+from active_learning import Active_learning
 
 # from temp import addNumbers
 
@@ -17,5 +17,6 @@ import workflow
 #   pass
 
 input_path = sys.argv[1]
-workflow = workflow(input_path)
+workflow = Active_learning(input_path)
+# workflow.exploit(1)
 workflow.main_workflow()
