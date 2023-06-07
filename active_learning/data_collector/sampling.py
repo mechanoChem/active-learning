@@ -2,21 +2,21 @@
 
 class Sampling():    
 
-    def __init__(self,idnn,dictionary): 
+    def __init__(self,model,dictionary): 
         ## determine dictionary ie 
-        self.wells
-        self.N_global_pts
-        self.idnn = idnn
+        self.model = model
+        self.dict = dictionary 
 
 
-    def read():
 
-    def write():
+    # def read(self,rnd,singleRnd=True):
 
-    def print():
+    # def write(self,rnd):
+
+    # def print(self,print):
 
     
-    def construct_job():
+    # def construct_job():
 
-    def submit_job():
+    # def submit_job():
 

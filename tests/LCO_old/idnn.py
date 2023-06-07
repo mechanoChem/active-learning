@@ -86,32 +86,30 @@ class IDNN(tf.keras.Model):
       x1 = inputs[0]
       x2 = inputs[1]
       x3 = inputs[2]
-      T1 = inputs[3]
-      T2 = inputs[4]
-      T3 = inputs[5]      
-      y = DNN(x1, T1)
+      x4 = inputs[3]  
+      y = DNN(x1, x4)
       
       with tf.GradientTape() as g:
         g.watch(x2)
-        y2 = DNN(x2,T2)
+        y2 = DNN(x2,x4)
       dy = g.gradient(y2,x2)
       
       with tf.GradientTape() as g2:
         g2.watch(x3)
         with tf.GradientTape() as g1:
           g1.watch(x3)
-          y3 = DNN(x3, T3)
+          y3 = DNN(x3, x4)
         dy3 = g1.gradient(y3,x3)
       ddy = g2.batch_jacobian(dy3,x3)
       
     else:
       x1 = inputs[0]
-      T = inputs[1]
+      x4 = inputs[1]
       with tf.GradientTape() as g2:
         g2.watch(x1)
         with tf.GradientTape() as g1:
           g1.watch(x1)
-          y = DNN(x1, T)
+          y = DNN(x1, x4)
         dy = g1.gradient(y,x1)
       ddy = g2.batch_jacobian(dy,x1)
 

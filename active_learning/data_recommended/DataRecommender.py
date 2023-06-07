@@ -5,10 +5,9 @@ import shutil
 from shutil import copyfile
 
 from importlib import import_module
-from data_generation_wrapper import submitCASM, compileCASMOutput, loadCASMOutput
 import tensorflow as tf
 from sobol_seq import i4_sobol
-from hitandrun import billiardwalk
+from active_learning.data_recommended.hitandrun import billiardwalk
 
 from tensorflow import keras
 from tensorflow.keras.callbacks import CSVLogger, ReduceLROnPlateau, EarlyStopping
@@ -16,23 +15,39 @@ from configparser import ConfigParser
 import tensorflow.keras.backend as K
 from tensorflow.keras.layers import Lambda
 from numpy import linalg as LA
-import helperfunctions
+from active_learning.data_recommended.helperfunctions import convex, convexMult
 
 
 class DataRecommender():
 
-    def __init__(self,idnn,dictionary): 
+    def __init__(self,model,dictionary): 
         ## determine sdictionary ie 
-        self.wells= #something
-        self.N_global_pts
-        self.idnn = idnn
-
+        # self.wells= #something
+        self.dict = dictionary
+        self.model = model
+        [self.domain, self.N_global_pts, self.wells,self.sample_well,self.sample_vertice,self.test_set,self.x0,self.Qpath,self.Initial_mu] = self.dict.get_category_values('Sampling Domain')
+        [self.derivative_dim,T] = self.dict.get_individual_keys(['derivative_dim','temperatures'])
+        self.Tmax = max(T)
+        self.Tmin = min(T)
+        [self.hessian_repeat, self.hessian_repeat_points, self.high_error_repeat, self.high_error_repeat_points] = self.dict.get_category_values('Exploit Parameters')
+        self.Q = np.loadtxt(f'{self.Qpath}')
+        self.invQ = np.linalg.inv(self.Q)[:,:self.derivative_dim]
+        self.Q = self.Q[:self.derivative_dim]
+        self.n_planes = np.vstack((self.invQ,-self.invQ))
+        self.c_planes = np.hstack((np.ones(self.invQ.shape[0]),np.zeros(self.invQ.shape[0])))
 
     # def read():
 
     # def write():
 
     # def print():
+
+    def load_single_rnd_output(self,rnd):
+        kappa = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,:self.derivative_dim]
+        eta = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,self.derivative_dim:2*self.derivative_dim]
+        mu = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,-self.derivative_dim:]
+        T = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,-self.derivative_dim-1:-self.derivative_dim]
+        return eta,mu,T
 
 
     def find_wells(self,x,dim=4,bounds=[0,0.25],rereference=True):
@@ -74,24 +89,10 @@ class DataRecommender():
     def sample_wells(self, rnd,N_w):
         # N_w Number of random points per vertex
         print('Sampling wells and end members...')
-        etaW = self.Wells
-        T = np.zeros((self.N_global_pts))
-        Tavg = (self.Tmax - self.Tmin)/2 + self.Tmin
-        for point in T:
-            point = Tavg
-        # define bias parameters
-        if rnd==0:
-            kappaW = etaW
-        else:
-            muW = self.idnn.predict([etaW,etaW,etaW,T,T,T])[1]
-            muW[:,0] =  muW[:,0]/self.adjustedx
-            for i in range(6):
-                muW[:,i+1] = muW[:,i+1]/self.adjustedn
-            kappaW = etaW + 0.5*muW/self.phi
-  
-        kappaW = np.repeat(kappaW,N_w,axis=0)
-        kappaW  += 0.15*(np.random.rand(*kappaW.shape)-0.5)
-        return kappaW 
+        etaW = self.Wells  
+        etaW = np.repeat(etaW,N_w,axis=0)
+        etaW  += 0.15*(np.random.rand(*etaW.shape)-0.5)
+        return etaW 
 
         # Sample between wells
         
@@ -101,23 +102,48 @@ class DataRecommender():
         # Get vertices
         etaB = self.Vertices
         #print(etaB)
-        if rnd==0:
-            kappaB = etaB
-        else:
-            muB = self.idnn.predict([etaB,etaB,etaB,T,T,T])[1]
-            muB[:,0] =  muB[:,0]/self.adjustedx
-            for i in range(6):
-                muB[:,i+1] = muB[:,i+1]/self.adjustedn
-            kappaB = etaB + 0.5*muB/self.phi
 
-        kappaW2 = np.zeros((2*(self.dim-1)*N_w2,self.dim))
-        kappaW2[:,0] = kappaB[0,0]
-        kappaW2 += 0.05*(np.random.rand(*kappaW2.shape)-0.5) # Small random perterbation
+        etaW2 = np.zeros((2*(self.dim-1)*N_w2,self.dim))
+        etaW2[:,0] = etaB[0,0]
+        etaW2 += 0.05*(np.random.rand(*etaW2.shape)-0.5) # Small random perterbation
         for i in range(1,self.dim):
             for j in range(2*N_w2):
-                kappaW2[2*(i-1)*N_w2 + j,i] = np.random.rand()*(kappaB[2*i-2,i] - kappaB[2*i-1,i]) + kappaB[2*i-1,i] # Random between positive and negative well
-        return kappaW2
+                etaW2[2*(i-1)*N_w2 + j,i] = np.random.rand()*(etaB[2*i-2,i] - etaB[2*i-1,i]) + etaB[2*i-1,i] # Random between positive and negative well
+        return etaW2
     
+
+    def create_test_set_sobol(self,N_points,dim,bounds=[0.,1.],seed=1):
+
+    # Create test set
+        x_test = np.zeros((N_points,dim))
+        eta = np.zeros((N_points,dim))
+        i = 0
+        while (i < N_points):
+            x_test[i],seed = i4_sobol(dim,seed)
+            x_test[i] = (bounds[1] - bounds[0])*x_test[i] + bounds[0] # shift/scale according to bounds
+            eta[i] = np.dot(x_test[i],self.Q.T).astype(np.float32)
+            if eta[i,0] <= 0.25:
+                i += 1
+        return x_test, eta, seed
+
+    def create_test_set_billiardwalk(self,N_points,N_boundary=0):
+        tau = 1
+        eta, eta_b = billiardwalk(self.x0,self.n_planes,self.c_planes,N_points,tau)
+        x_test = eta 
+        self.x0 = eta[-1] # Take last point to be next initial point)
+        eta = np.vstack((eta,eta_b[np.random.permutation(np.arange(len(eta_b)))[:N_boundary]]))
+
+        return x_test,eta
+
+    def ideal(self,x_test):
+
+        T = self.T
+        kB = 8.61733e-5
+        invQ = np.linalg.inv(self.Q)
+        mu_test = 0.25*kB*T*np.log(x_test/(1.-x_test)).dot(invQ)
+
+        return mu_test
+
     def explore(self,rnd,test_set, x_bounds=[], temp=300):
         
         # sample with sobol
@@ -128,13 +154,14 @@ class DataRecommender():
             elif rnd<6:
                 x_bounds = [x_bounds[0]- delta,x_bounds[1]+delta]
             else:
-                x_bounds = [x_bounds[0],bounds[1]]
+                x_bounds = [x_bounds[0],x_bounds[1]]
             print('Create sample set...')
             x_test,eta,self.seed = self.create_test_set_sobol(self.N_global_pts,
                                                         self.dim,
                                                         bounds=x_bounds,
                                                         seed=self.seed)
 
+        # print(test_set)
         if test_set == 'billiardwalk':
        # sample quasi-uniformly
             if rnd<6:
@@ -144,30 +171,33 @@ class DataRecommender():
             print('Create sample set...')
             x_test, eta = self.create_test_set_billiardwalk(self.N_global_pts,
                                     N_boundary=N_b)
+            # print('eta ',eta)
 
 
-
-        T = np.ones(eta.shape[0])*temp
-        if rnd==0:
-            if self.Initial_mu == 'ideal':
-                mu_test = self.ideal(x_test)
-            else:
-                mu_test = 0
-        else:
-            mu_test = self.idnn.predict([eta,eta,eta,T,T,T])[1]
+        # T = np.ones(eta.shape[0])*temp
+        # if rnd==0:
+        #     if self.Initial_mu == 'ideal':
+        #         mu_test = self.ideal(x_test)
+        #     else:
+        #         mu_test = 0
+        # else:
+        #     mu_test = self.idnn.predict([eta,eta,eta,T,T,T])[1]
         
-        kappa = eta + 0.5*mu_test/self.phi
+        # kappa = eta + 0.5*mu_test/self.phi
 
-        return kappa          
+        return eta         
+
+
 
 
    ########################################
         ##exploit hessian values
-    def hessian(self,rnd, tol):
-        kappa_test, eta, mu_load, T_test = loadCASMOutput(rnd,7,singleRnd=False)
+    def hessian(self,rnd, tol,repeat):
+        eta, mu_load, T_test = self.load_single_rnd_output(rnd)
         print('Predicting...')
 
-        pred =  self.idnn.predict([eta,eta,eta, T_test, T_test, T_test])
+        T_test_adjust = (T_test - ((self.Tmax - self.Tmin)/2))/(self.Tmax - ((self.Tmax - self.Tmin)/2))
+        pred = self.idnn.predict([eta,eta,eta, T_test_adjust, T_test_adjust, T_test_adjust])[1]
         free = pred[0]
         mu = pred[1]
         hessian= pred[2]
@@ -190,30 +220,31 @@ class DataRecommender():
         I = arg_zero_eig(eigen,tol)*(eta[:,0] > .45)*(eta[:,0] < .55)
         #print(I)
         #print(kappa_test)
-        kappaE= kappa_test[I]
-        #print(kappaE.size)
-        print('tol',tol)
-        print('kappaE', kappaE)
+        eta = eta[I]
+        # kappaE= kappa_test[I]
+        # #print(kappaE.size)
+        # print('tol',tol)
+        # print('kappaE', kappaE)
         #kappaE = random.shuffle(kappaE)
         #print('kappaE', kappaE)
-        kappa_a = np.repeat(kappaE[:100],3,axis=0)
-        kappa_b = np.repeat(kappaE[100:300],2,axis=0)
-        kappa_local = np.vstack((kappa_a,kappa_b))
-        kappa_local = 0.02*2.*(np.random.rand(*kappa_local.shape)-0.5) #perturb points randomly
+        eta_a = np.repeat(eta[:self.hessian_repeat_points[0]],self.hessian_repeat[0],axis=0)
+        eta_b = np.repeat(eta[self.hessian_repeat_points[0]:self.hessian_repeat_points[0]+self.hessian_repeat_points[1]],self.hessian_repeat[1],axis=0)
+        eta_local = np.vstack((eta_a,eta_b))
+        eta_local = 0.02*2.*(np.random.rand(*eta_local.shape)-0.5) #perturb points randomly
 
-        return kappa_local  
+        return eta_local
     ########################################
     
     def high_error(self,rnd):
         
         # local error
         print('Loading data...')
-        kappa_test, eta_test, mu_test, T_test = loadCASMOutput(rnd-1,self.dim,singleRnd=True)
+        eta_test, mu_test, T_test = self.load_single_rnd_output(rnd)
 
         ##Normalizing T to make it easier to train
         T_test_adjust = (T_test - ((self.Tmax - self.Tmin)/2))/(self.Tmax - ((self.Tmax - self.Tmin)/2))
         print('Predicting...')
-        mu_pred = self.idnn.predict([eta_test,eta_test,eta_test, T_test_adjust, T_test_adjust, T_test_adjust])[1]
+        mu_pred = self.idnn.predict([eta_test,eta_test,eta_test, T_test_adjust])[1]
 
         mu_pred[:,0] =  mu_pred[:,0]/self.adjustedx
         for i in range(6):
@@ -221,42 +252,17 @@ class DataRecommender():
 
         print('Finding high pointwise error...')
         error = np.sum((mu_pred - mu_test)**2,axis=1)
-        points = np.hstack((kappa_test, T_test))
+        points = np.hstack((eta_test, T_test))
         higherror =  points[np.argsort(error)[::-1],:]
         
         
         # randomly perturbed samples
-        if self.test:
-            kappa_a = np.repeat(points[:3,:],3,axis=0)
-            kappa_b = np.repeat(points[3:6,:],2,axis=0)
-        else:
-            kappa_a = np.repeat(points[:200],3,axis=0)
-            kappa_b = np.repeat(points[200:400],2,axis=0)
+        eta_a = np.repeat(points[:self.high_error_repeat_points[0],:],self.high_error_repeat[0],axis=0)
+        eta_b = np.repeat(points[self.high_error_repeat_points[0]:self.high_error_repeat_points[0]+self.high_error_repeat_points[1],:],self.high_error_repeat[1],axis=0)
+         
 
-        # sample wells 
-        if 'exploit' in self.Sample_wells:
-            etaW = find_wells(self.idnn,eta_test)
-            muW = self.idnn.predict([etaW,etaW,etaW,T_test,T_test,T_test])[1]
-            muW[:,0] =  muW[:,0]/self.adjustedx
-            for i in range(6):
-                muW[:,i+1] = muW[:,i+1]/self.adjustedn
-            
-            kappaW = etaW + 0.5*muW/(self.phi)
-            if self.test:
-                kappa_c = np.repeat(kappaW[:4],3,axis=0)
-            else:
-                kappa_c = np.repeat(kappaW[:400],4,axis=0)
-            kappa_local = np.vstack((kappa_a,kappa_b, kappa_c))
-        else:
-            kappa_local = np.vstack((kappa_a,kappa_b))
-        
-        Temp = kappa_local[:,self.dim]
-        kappa_local = kappa_local[:,0:self.dim]
-        kappa_local += 0.02*2.*(np.random.rand(*kappa_local.shape)-0.5) #perturb points randomly
-        ##add values from hessian
-        # tol = 0.035+0.001*i
-        # hessian_values = self.hessian(rnd-1, tol)
-        # print(np.shape(hessian_values))
-        # print(np.shape(kappa_local))
-        # kappa_local = np.vstack((kappa_local,hessian_values))
+        eta_local = np.vstack((eta_a,eta_b))
+        eta_local = 0.02*2.*(np.random.rand(*eta_local.shape)-0.5) #perturb points randomly
+
+        return eta_local
         

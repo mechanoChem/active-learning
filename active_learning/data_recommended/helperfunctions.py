@@ -1,4 +1,5 @@
 import numpy as np
+from active_learning.data_recommended.hitandrun import billiardwalk
 
 def convex(M):
 
@@ -16,3 +17,4 @@ def convexMult(Ms):
         ind[i] = convex(Ms[i])
 
     return ind
+

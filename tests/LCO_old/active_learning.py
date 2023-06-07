@@ -459,6 +459,7 @@ class Active_learning(object):
 
             # create energy dataset (zero energy at origin)
             eta_train0 = np.zeros(eta_train.shape)
+            print('SHAPE: ',eta_train.shape)
             g_train0 = np.zeros((eta_train.shape[0],1))
             T_train0 = np.zeros(T_train.shape)
 
@@ -486,7 +487,7 @@ class Active_learning(object):
             #    mu_train[:,i+1] = mu_train[:,i+1]*self.adjustedn
 
             if self.WeightRecent == 'Yes':
-                history =idnn.fit([eta_train0,eta_train,0*eta_train, T_train0, T_train, T_train0],
+                history =idnn.fit([eta_train0,eta_train,0*eta_train, T_train],
                       [g_train0,100*mu_train,0*mu_train],
                       validation_split=0.25,
                       epochs=self.Epochs,
