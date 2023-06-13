@@ -57,8 +57,9 @@ def submitCASM(N_jobs,phi,kappa,Tlist,rnd, account, walltime, mem, casm_project_
                                                         'param_chem_pot': {'a': 0}}]
             # print(inputF)
             # inputF  = str(inputF)
-            with open('job_{0}/monte_settings_{0}.json'.format(job+1),'w') as outFile:
-                json.dump(inputF,outFile,indent=4)
+                print(type(inputF))
+                with open('job_{0}/monte_settings_{0}.json'.format(job+1),'w') as outFile:
+                    print(type(outFile))
     string = ""
     for i in data_generation:
         string += str(i) + " "

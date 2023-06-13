@@ -186,18 +186,18 @@ def compileCASMOutput(rnd, casm_version, len,temp=''):
                    fmt='%.12f',
                    header=header)
 
-def loadCASMOutput(rnd,dim,singleRnd=False):
+def loadCASMOutput(rnd,dim,outputFolder,singleRnd=False):
 
     if singleRnd:
-        kappa = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,:dim]
-        eta = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,dim:2*dim]
-        mu = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,-dim:]
-        T = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,-dim-1:-dim]
+        kappa = np.genfromtxt(outputFolder + 'data/data_sampled/results'+str(rnd)+'.txt',dtype=np.float32)[:,:dim]
+        eta = np.genfromtxt(outputFolder + 'data/data_sampled/results'+str(rnd)+'.txt',dtype=np.float32)[:,dim:2*dim]
+        mu = np.genfromtxt(outputFolder + 'data/data_sampled/results'+str(rnd)+'.txt',dtype=np.float32)[:,-dim:]
+        T = np.genfromtxt(outputFolder + 'data/data_sampled/results'+str(rnd)+'.txt',dtype=np.float32)[:,-dim-1:-dim]
     else:
-        kappa = np.genfromtxt('data/allResults'+str(rnd)+'.txt',dtype=np.float32)[:,:dim]
-        eta = np.genfromtxt('data/allResults'+str(rnd)+'.txt',dtype=np.float32)[:,dim:2*dim]
-        mu = np.genfromtxt('data/allResults'+str(rnd)+'.txt',dtype=np.float32)[:,-dim:]
-        T = np.genfromtxt('data/allResults'+str(rnd)+'.txt',dtype=np.float32)[:,-dim-1:-dim]
+        kappa = np.genfromtxt(outputFolder + 'data/data_sampled/allResults'+str(rnd)+'.txt',dtype=np.float32)[:,:dim]
+        eta = np.genfromtxt(outputFolder + 'data/data_sampled/allResults'+str(rnd)+'.txt',dtype=np.float32)[:,dim:2*dim]
+        mu = np.genfromtxt(outputFolder + 'data/data_sampled/allResults'+str(rnd)+'.txt',dtype=np.float32)[:,-dim:]
+        T = np.genfromtxt(outputFolder + 'data/data_sampled/allResults'+str(rnd)+'.txt',dtype=np.float32)[:,-dim-1:-dim]
 
     return kappa, eta, mu, T
 

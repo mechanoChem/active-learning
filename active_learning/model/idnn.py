@@ -61,13 +61,12 @@ class IDNN(tf.keras.Model):
     
     self.transforms = transforms
     self.unique_inputs = unique_inputs
-    print(hidden_units)
   
     # Define dense layers
     self.dnn_layers = []
-    self.dnn_layers.append(Dense(hidden_units[0], activation=activation, input_dim=input_dim))
+    self.dnn_layers.append(Dense(hidden_units[0], activation=activation[0], input_dim=input_dim))
     for i in range(1,len(hidden_units)):
-      self.dnn_layers.append(Dense(hidden_units[i], activation=activation))
+      self.dnn_layers.append(Dense(hidden_units[i], activation=activation[i]))
       if dropout:
         self.dnn_layers.append(Dropout(dropout))
     self.dnn_layers.append(Dense(1,use_bias=final_bias))

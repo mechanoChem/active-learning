@@ -266,6 +266,8 @@ class Active_learning(object):
             # for i in range(6):
             #     mu_test[:,i+1] = mu_test[:,i+1]/self.adjustedn
         
+        print(type(mu_test))
+        print(type(self.phi))
         kappa = eta + 0.5*mu_test/self.phi
         
         if 'Guided' in self.Sample_wells:

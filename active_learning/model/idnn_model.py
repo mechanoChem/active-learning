@@ -7,6 +7,7 @@ import numpy as np
 from tensorflow.keras.callbacks import CSVLogger, ReduceLROnPlateau, EarlyStopping
 from active_learning.model.data_generation_wrapper import submitCASM, compileCASMOutput, loadCASMOutput
 import sys
+import random
 
 
 class IDNN_Model(Model):
@@ -14,12 +15,20 @@ class IDNN_Model(Model):
         super().__init__()
         self.dict =dict
 
-        [self.epochs, self.batch_size,self.activation,self.hidden_units, self.optimizer, 
-         self.N_sets, self.LearningRate,self.Layers,self.Neurons,self.Dropout, self.Learning] = self.dict.get_category_values('Neural Network')
-        [self.dim] = self.dict.get_individual_keys(['input_dim'])
+        [self.Epochs, self.batch_size,self.activation,self.hidden_units, self.optimizer, 
+         self.N_sets, self.LR_range,self.Layers,self.Neurons,self.Dropout, self.Learning] = self.dict.get_category_values('Neural Network')
+        [self.dim,self.Output_folder,self.derivative_dim,self.temp] = self.dict.get_individual_keys(['input_dim','outputfolder','derivative_dim','temperatures'])
+        
+        [self.WeightRecent,self.LR_decay,self.Min_lr,self.EarlyStopping,self.Patience] = self.dict.get_category_values('Training')
+        self.Tmin = min(self.temp)
+        self.Tmax = max(self.temp)
+        self.activation_list = []
+        for i in range(len(self.hidden_units)):
+            self.activation_list.append(random.choice(self.activation))
+
         self.model = IDNN(self.dim,
                 self.hidden_units,
-                activation = self.activation,
+                activation = self.activation_list,
                 transforms=self.IDNN_transforms(),
                 dropout=self.Dropout,
                 unique_inputs=True,
@@ -27,14 +36,14 @@ class IDNN_Model(Model):
         self.opt = 'keras.optimizers.' + self.optimizer 
         self.model.compile(loss=['mse','mse',None],
                         loss_weights=[0.01,1,None],
-                        optimizer=eval(self.opt)(learning_rate=self.LearningRate))
+                        optimizer=eval(self.opt)(learning_rate=self.LR_range))
     
     def predict(self,data):
-        output = self.model.predict(input)
+        return self.model.predict(data)
     
 
     def load_data(self,rnd, singleRnd=True):
-        loadCASMOutput(rnd, self.dim, singleRnd=False)
+        return loadCASMOutput(rnd, self.dim, self.Output_folder, singleRnd=False)
 
         
     def loss(self,rnd):
@@ -49,11 +58,17 @@ class IDNN_Model(Model):
     
     
     def save_model(self,rnd):
-        self.model.save('model_{}{}'.format(rnd))
+        self.model.save('model_{}'.format(rnd))
 
     
     def train(self,rnd):
-        params = self.load_data(rnd,singleRnd=True) 
+        kappa,eta_train,mu_train,T_train = self.load_data(rnd,singleRnd=True) 
+        learning_rate = np.power(10,(np.log10(self.LR_range[1]) - np.log10(self.LR_range[0]))*np.random.rand(1)[0] + np.log10(0.0001),dtype=np.float32)
+        # print(params)
+        # print('params shape ',np.shape(params))
+        # eta_train = params[:self.derivative_dim]
+        # T_train = params[self.derivative_dim]
+        params = [eta_train,T_train]
 
         inds = np.arange(eta_train.shape[0])
         np.random.shuffle(inds)
@@ -70,7 +85,6 @@ class IDNN_Model(Model):
 
         # create energy dataset (zero energy at origin)
         eta_train0 = np.zeros(eta_train.shape)
-        print('SHAPE: ',eta_train.shape)
         g_train0 = np.zeros((eta_train.shape[0],1))
         T_train0 = np.zeros(T_train.shape)
 
@@ -83,8 +97,8 @@ class IDNN_Model(Model):
         lr_decay = self.LR_decay**rnd
         self.model.compile(loss=['mse','mse',None],
                         loss_weights=[0.01,1,None],
-                        optimizer=eval(self.opt)(lr=self.lr*lr_decay))
-        csv_logger = CSVLogger('training/training_{}{}.txt'.format(rnd,set_i),append=True)
+                        optimizer=eval(self.opt)(lr=learning_rate*lr_decay))
+        csv_logger = CSVLogger(self.Output_folder+'data/training/training_{}.txt'.format(rnd),append=True)
         reduceOnPlateau = ReduceLROnPlateau(factor=0.5,patience=100,min_lr=self.Min_lr)
         callbackslist = [csv_logger, reduceOnPlateau]
         if EarlyStopping == 'Yes':
@@ -94,21 +108,23 @@ class IDNN_Model(Model):
         print('Training...')
 
 
+
         if self.WeightRecent == 'Yes':
-            history =self.model.fit(params[0],
-                    params[1],
+            history =self.model.fit([eta_train0,eta_train,0*eta_train, T_train],
+                    [g_train0,100*mu_train,0*mu_train],
                     validation_split=0.25,
                     epochs=self.Epochs,
-                    batch_size=self.Batch_size,
+                    batch_size=self.batch_size,
                     sample_weight=[sample_weight,sample_weight],
                     callbacks=callbackslist)
         else:
-            history=self.model.fit(params[0],
-                    params[1],
+            history=self.model.fit([eta_train0,eta_train,0*eta_train, T_train],
+                    [g_train0,100*mu_train,0*mu_train],
                     validation_split=0.25,
                     epochs=self.Epochs,
-                    batch_size=self.Batch_size,
+                    batch_size=self.batch_size,
                     callbacks=callbackslist)
+        return self.model
     
     def IDNN_transforms(self):
 

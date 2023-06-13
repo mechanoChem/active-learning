@@ -25,48 +25,72 @@ class DataRecommender():
         # self.wells= #something
         self.dict = dictionary
         self.model = model
-        [self.domain, self.N_global_pts, self.wells,self.sample_well,self.sample_vertice,self.test_set,self.x0,self.Qpath,self.Initial_mu] = self.dict.get_category_values('Sampling Domain')
-        [self.derivative_dim,T] = self.dict.get_individual_keys(['derivative_dim','temperatures'])
+        [self.domain, self.N_global_pts, self.wells,self.sample_well,self.sample_vertice,self.test_set,self.x0,self.Qpath] = self.dict.get_category_values('Sampling Domain')
+        [self.derivative_dim,T,self.outputFolder] = self.dict.get_individual_keys(['derivative_dim','temperatures','outputfolder'])
         self.Tmax = max(T)
         self.Tmin = min(T)
-        [self.hessian_repeat, self.hessian_repeat_points, self.high_error_repeat, self.high_error_repeat_points] = self.dict.get_category_values('Exploit Parameters')
+        [self.sample_hessian,self.hessian_repeat, self.hessian_repeat_points,self.sample_high_error, self.high_error_repeat, self.high_error_repeat_points] = self.dict.get_category_values('Exploit Parameters')
         self.Q = np.loadtxt(f'{self.Qpath}')
         self.invQ = np.linalg.inv(self.Q)[:,:self.derivative_dim]
         self.Q = self.Q[:self.derivative_dim]
         self.n_planes = np.vstack((self.invQ,-self.invQ))
         self.c_planes = np.hstack((np.ones(self.invQ.shape[0]),np.zeros(self.invQ.shape[0])))
 
+        self.header = ''
+        for i in range(len(self.x0)):
+            self.header += 'eta_'+str(i)+' '
+        self.header += 'T '
+
     # def read():
 
-    # def write():
+    def write(self,rnd,type,output):
+        np.savetxt('/Users/jamieholber/Software/active-learning/Output/data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt',output,fmt='%.12f',
+                    header=self.header)
+        
+        if os.path.isfile('/Users/jamieholber/Software/active-learning/Output/data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt'):
+            allResults = np.loadtxt('/Users/jamieholber/Software/active-learning/Output/data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt')
+            output = np.vstack((allResults,output))
+        np.savetxt('/Users/jamieholber/Software/active-learning/Output/data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt',
+                    output,
+                    fmt='%.12f',
+                    header=self.header)
+
+
+
+        if os.path.isfile('/Users/jamieholber/Software/active-learning/Output/data/data_recommended/rnd'+str(rnd)+'.txt'):
+            allResults = np.loadtxt('/Users/jamieholber/Software/active-learning/Output/data/data_recommended/rnd'+str(rnd)+'.txt')
+            output = np.vstack((allResults,output))
+        np.savetxt('/Users/jamieholber/Software/active-learning/Output/data/data_recommended/rnd'+str(rnd)+'.txt',
+                    output,
+                    fmt='%.12f',
+                    header=self.header)
 
     # def print():
 
-    def load_single_rnd_output(self,rnd):
-        kappa = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,:self.derivative_dim]
-        eta = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,self.derivative_dim:2*self.derivative_dim]
-        mu = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,-self.derivative_dim:]
-        T = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,-self.derivative_dim-1:-self.derivative_dim]
+    def load_data(self,rnd):
+        eta = np.genfromtxt(self.outputFolder+'data/data_sampled/results'+str(rnd)+'.txt',dtype=np.float32)[:,self.derivative_dim:2*self.derivative_dim]
+        mu = np.genfromtxt(self.outputFolder+'data/data_sampled/results'+str(rnd)+'.txt',dtype=np.float32)[:,-self.derivative_dim:]
+        T = np.genfromtxt(self.outputFolder+'data/data_sampled/results'+str(rnd)+'.txt',dtype=np.float32)[:,-self.derivative_dim-1:-self.derivative_dim]
         return eta,mu,T
 
 
-    def find_wells(self,x,dim=4,bounds=[0,0.25],rereference=True):
+    def find_wells(self,x,T,dim=4,bounds=[0,0.25],rereference=True):
 
     # Find "wells" (regions of convexity, with low gradient norm)
 
     # First, rereference the free energy
-        if self.idnn.unique_inputs:
-            pred = self.idnn.predict([x,x,x])
+        if self.model.unique_inputs:
+            pred = self.model.predict([x,x,x,T])
         else:
-            pred = self.idnn.predict(x)
+            pred = self.model.predict(x,T)
         mu_test = 0.01*pred[1]
         if rereference:
             eta_test = np.array([bounds[0]*np.ones(dim),
                                 bounds[1]*np.ones(dim)])
-            if self.idnn.unique_inputs:
-                y = 0.01*self.idnn.predict([eta_test,eta_test,eta_test])[0]
+            if self.model.unique_inputs:
+                y = 0.01*self.model.predict([eta_test,eta_test,eta_test,T])[0]
             else:
-                y = 0.01*self.idnn.predict(eta_test)[0]
+                y = 0.01*self.model.predict(eta_test)[0]
             g0 = y[0,0]
             g1 = y[1,0]
             mu_test[:,0] = mu_test[:,0] - 1./bounds[1]*(g1 - g0)
@@ -81,7 +105,7 @@ class DataRecommender():
         
         # Return eta values with local convexity, sorted by gradient norm (low to high)
 
-        return eta[ind3]
+        return eta[ind3],T
 
 
 
@@ -155,7 +179,7 @@ class DataRecommender():
                 x_bounds = [x_bounds[0]- delta,x_bounds[1]+delta]
             else:
                 x_bounds = [x_bounds[0],x_bounds[1]]
-            print('Create sample set...')
+            print('Create sobol sample set...')
             x_test,eta,self.seed = self.create_test_set_sobol(self.N_global_pts,
                                                         self.dim,
                                                         bounds=x_bounds,
@@ -168,36 +192,25 @@ class DataRecommender():
                 N_b = int(self.N_global_pts/4)
             else:
                 N_b = 0
-            print('Create sample set...')
+            print('Create billiard sample set for temperature ',temp)
             x_test, eta = self.create_test_set_billiardwalk(self.N_global_pts,
                                     N_boundary=N_b)
-            # print('eta ',eta)
 
-
-        # T = np.ones(eta.shape[0])*temp
-        # if rnd==0:
-        #     if self.Initial_mu == 'ideal':
-        #         mu_test = self.ideal(x_test)
-        #     else:
-        #         mu_test = 0
-        # else:
-        #     mu_test = self.idnn.predict([eta,eta,eta,T,T,T])[1]
-        
-        # kappa = eta + 0.5*mu_test/self.phi
-
-        return eta         
+        # print(np.shape(eta)[1])
+        output = np.hstack((eta,np.ones((np.shape(eta)[0],1))*temp))
+        self.write(rnd, 'test_set', output)       
 
 
 
 
    ########################################
         ##exploit hessian values
-    def hessian(self,rnd, tol,repeat):
-        eta, mu_load, T_test = self.load_single_rnd_output(rnd)
+    def hessian(self,rnd,tol=0.1):
+        eta, mu_test, T_test = self.load_data(rnd-1)
         print('Predicting...')
 
         T_test_adjust = (T_test - ((self.Tmax - self.Tmin)/2))/(self.Tmax - ((self.Tmax - self.Tmin)/2))
-        pred = self.idnn.predict([eta,eta,eta, T_test_adjust, T_test_adjust, T_test_adjust])[1]
+        pred = self.model.predict([eta,eta,eta, T_test_adjust, T_test_adjust, T_test_adjust])
         free = pred[0]
         mu = pred[1]
         hessian= pred[2]
@@ -205,6 +218,7 @@ class DataRecommender():
 
         eigen = np.zeros(eta.shape)
         eigenvector = np.zeros(hessian.shape)
+
 
 
         for i in range(len(hessian)):
@@ -239,16 +253,16 @@ class DataRecommender():
         
         # local error
         print('Loading data...')
-        eta_test, mu_test, T_test = self.load_single_rnd_output(rnd)
+        eta_test, mu_test, T_test = self.load_data(rnd-1)
 
         ##Normalizing T to make it easier to train
         T_test_adjust = (T_test - ((self.Tmax - self.Tmin)/2))/(self.Tmax - ((self.Tmax - self.Tmin)/2))
         print('Predicting...')
-        mu_pred = self.idnn.predict([eta_test,eta_test,eta_test, T_test_adjust])[1]
+        mu_pred = self.model.predict([eta_test,eta_test,eta_test, T_test_adjust])[1]
 
-        mu_pred[:,0] =  mu_pred[:,0]/self.adjustedx
-        for i in range(6):
-            mu_pred[:,i+1] = mu_pred[:,i+1]/self.adjustedn
+        # mu_pred[:,0] =  mu_pred[:,0]/self.adjustedx
+        # for i in range(6):
+        #     mu_pred[:,i+1] = mu_pred[:,i+1]/self.adjustedn
 
         print('Finding high pointwise error...')
         error = np.sum((mu_pred - mu_test)**2,axis=1)
