@@ -21,11 +21,11 @@ class CASM_Sampling(Sampling):
             [self.Hidden_Layers, self.Input_Shape, self.dim, self.CASM_version, self.data_gen_activation, self.folder]=self.dict.get_category_values('CASM Surrogate')
 
         [self.Model_type,    
-         self.Data_Generation, self.Data_Generation_Source, 
-         self.restart, self.Input_data, self.Input_dim, 
-         self.Output_Dim, self.Derivative_Dim, self.Iterations, self.OutputFolder, 
-         self.seed, self.temperatures] = self.dict.get_category_values('Overview')
+         self.Data_Generation, self.Data_Generation_Source, self.restart,
+         self.input_data,self.input_alias,self.output_alias,_,_, self.iterations,
+         self.OutputFolder, self.seed, self.Input_dim, self.derivative_dim, self.output_dim,_] = self.dict.get_category_values('Overview')
         
+        self.sampling_dict = self.dict.get_category('Sampling')
 
 
 
@@ -79,21 +79,66 @@ class CASM_Sampling(Sampling):
         header += 'T '
         for i in range(self.Input_dim):
             header += 'mu_'+str(i)+' '
-        print(np.shape(dataOut))
-        np.savetxt(self.OutputFolder + 'data/data_sampled/results{}.txt'.format(rnd),
+
+        np.savetxt(self.OutputFolder + 'data/data_sampled/CASMresults{}.txt'.format(rnd),
                 dataOut,
                 header=header)
         if rnd==0:
-            copyfile(self.OutputFolder + 'data/data_sampled/results{}.txt'.format(rnd),self.OutputFolder + 'data/data_sampled/allResults{}.txt'.format(rnd))
+            copyfile(self.OutputFolder + 'data/data_sampled/CASMresults{}.txt'.format(rnd),self.OutputFolder + 'data/data_sampled/CASMallResults{}.txt'.format(rnd))
         else:
-            allResults = np.loadtxt(self.OutputFolder + 'data/data_sampled/allResults{}.txt'.format(rnd-1))
+            allResults = np.loadtxt(self.OutputFolder + 'data/data_sampled/CASMallResults{}.txt'.format(rnd-1))
             allResults = np.vstack((allResults,dataOut))
-            np.savetxt(self.OutputFolder + 'data/data_sampled/allResults{}.txt'.format(rnd),
+            np.savetxt(self.OutputFolder + 'data/data_sampled/CASMallResults{}.txt'.format(rnd),
                     allResults,
                     header=header)
+        
+
+        eta = eta.T
+        mu = mu.T
+        T = T.T
 
 
-    # def print(self,print):
+        input_derivative = np.array([np.zeros(np.shape(eta)),eta,eta*0])
+        input_non_derivative = np.array([T])
+        output =[0*T, mu, 0*mu]
+        
+
+        dataOut = np.array([input_derivative,input_non_derivative,output], dtype=object)
+        np.save(self.OutputFolder + 'data/data_sampled/results{}'.format(rnd),
+        dataOut)
+        if rnd==0:
+            np.save(self.OutputFolder + 'data/data_sampled/allResults{}'.format(rnd),
+                    dataOut)
+        else:
+            allResults =  np.load(self.OutputFolder + 'data/data_sampled/results{}.npy'.format(rnd-1),allow_pickle=True)
+            for i in range(2):
+                # print('CASM sampling line 115')
+                # print(np.shape(allResults[i]))
+                # print(np.shape(dataOut[i]))
+                allResults[i] = np.concatenate((allResults[i],dataOut[i]),axis=-1)
+                # print(np.shape(allResults[i]))
+            # print('CASM sampling line 117')
+
+            for j in range(3):
+                # print(np.shape(allResults[2][j]))
+                # print(np.shape(dataOut[2][j]))
+                allResults[2][j] = np.concatenate((allResults[2][j],dataOut[2][j]),axis=-1)
+                # print(np.shape(allResults[2][j]))
+
+
+            np.save(self.OutputFolder + 'data/data_sampled/allResults{}'.format(rnd),
+                    allResults)
+        
+            
+
+
+    def ideal(self,x_test,T):
+        kB = 8.61733e-5 
+        invQ = self.sampling_dict['continuous_dependent']['Qmatrix']['invQ']
+        mu_test = 0.25*kB*np.log(x_test/(1.-x_test)).dot(invQ.T)
+        mu_test = np.multiply(T,mu_test)
+
+        return mu_test
 
     
     def construct_job(self,rnd):
@@ -101,12 +146,13 @@ class CASM_Sampling(Sampling):
         eta = data_recommended[:,:self.Input_dim-1]
         T = data_recommended[:,self.Input_dim-1:self.Input_dim]
         if rnd==0:
-            if self.Initial_mu == 'ideal':
-                mu_test = self.ideal(eta)
+            if self.Initial_mu == 'Ideal':
+                mu_test = self.ideal(eta,T)
             else:
-                mu_test = 0
+                mu_test = np.zeros(np.shape(eta))
         else:
             mu_test = self.model.predict([eta,eta,eta,T])[1]
+
 
         kappa = eta + 0.5*mu_test/self.phi
 
@@ -115,8 +161,6 @@ class CASM_Sampling(Sampling):
         if self.version == 'NiAl':
             kappa = np.expand_dims(kappa,-1).tolist()
             phi = np.expand_dims(phi,-1).tolist()
-
-        #kappa = np.expand_dims(kappa,-1).tolist()
 
         with open(os.path.dirname(__file__)+'/monte_settings_{}.json.tmpl'.format(self.version),'r') as tmplFile:
                 

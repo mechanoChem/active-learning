@@ -13,13 +13,16 @@ from active_learning.data_collector.CASM_Sampling import CASM_Sampling
 class Workflow():
 
     def __init__(self,input_path):
+        self.input_path = input_path
         self.dict = Dictionary(input_path)
+        # print(self.dict.get_category_values('Overview'))
         [self.Model_type,    
          self.Data_Generation, self.Data_Generation_Source, 
-         self.restart, self.Input_data, self.Input_dim, 
-         self.Output_Dim, self.Derivative_Dim, self.Iterations, self.OutputFolder, 
-         self.seed, self.temperatures] = self.dict.get_category_values('Overview')
+         self.restart, self.Input_data, self.Input_alias, 
+         self.Output_alias,_,_,  self.Iterations, self.OutputFolder, 
+         self.seed,self.input_dim,self.output_dim,self.derivative_dim,self.config_path] = self.dict.get_category_values('Overview')
         
+
         [self.sample_hessian,self.hessian_repeat, self.hessian_repeat_points,self.sample_high_error,
         self.high_error_repeat, self.high_error_repeat_points] = self.dict.get_category_values('Exploit Parameters')
         
@@ -27,8 +30,8 @@ class Workflow():
             self.read_restart(self.Restart_path)
         else:
             self.rnd=0
-            if  os.path.exists(self.OutputFolder + 'data/training'):
-                shutil.rmtree(self.OutputFolder +'data/training')
+            if  os.path.exists(self.OutputFolder + 'training'):
+                shutil.rmtree(self.OutputFolder +'training')
             if  os.path.exists(self.OutputFolder +'data/data_recommended'):
                 shutil.rmtree(self.OutputFolder +'data/data_recommended')
             if  os.path.exists(self.OutputFolder +'data/data_sampled'):
@@ -39,7 +42,7 @@ class Workflow():
                 os.mkdir(self.OutputFolder)
             if not os.path.exists(self.OutputFolder+'data'):
                 os.mkdir(self.OutputFolder+'data')
-            os.mkdir(self.OutputFolder +'data/training')
+            os.mkdir(self.OutputFolder +'training')
             os.mkdir(self.OutputFolder +'data/data_recommended')
             os.mkdir(self.OutputFolder +'data/data_sampled')
             os.mkdir(self.OutputFolder +'data/outputFiles')
@@ -92,21 +95,20 @@ class Workflow():
 
     def explore(self):
         [self.sample_wells,self.sample_vertices,self.test_set] = self.dict.get_individual_keys(['sample_wells','sample_vertices','test_set'])
-        for t in self.temperatures:
-            if 'Explore' in self.sample_wells:
-                print('Sampling Wells for temperature ', t)
-                self.recommender.sample_wells(self.rnd,t)
-            if self.sample_vertices:
-                print('Sampling Vertices for temperature ', t)
-                self.recommender.sample_vertices(self.rnd,t)
-            if self.test_set == 'sobol':
-                self.recommender.explore(self.rnd,self.test_set, x_bounds=[self.xmin, self.xmax], temp =t)
-            else:
-                self.recommender.explore(self.rnd,self.test_set, temp =t)
+        if 'Explore' in self.sample_wells:
+            print('Sampling Wells')
+            self.recommender.sample_wells(self.rnd)
+        if self.sample_vertices:
+            print('Sampling Vertices')
+            self.recommender.sample_vertices(self.rnd)
+        if self.test_set == 'sobol':
+            self.recommender.explore(self.rnd,self.test_set, x_bounds=[self.xmin, self.xmax])
+        else:
+            self.recommender.explore(self.rnd,self.test_set)
 
     
     def exploit(self,model):
-        # for t in self.temperatures:
+        [self.sample_wells,self.sample_vertices,self.test_set] = self.dict.get_individual_keys(['sample_wells','sample_vertices','test_set'])
         if self.sample_high_error == True:
             self.recommender.high_error(self.rnd)
         if self.sample_hessian == True:
@@ -119,39 +121,49 @@ class Workflow():
     def sample_data(self,rnd):
         command = self.sampling.construct_job(rnd)
         self.sampling.submit_job(command)
+        # print('check1')
         self.sampling.write(rnd)
+        # print('sampling write complete')
 
 
-    def hyperparaemeter_search(self,rnd):
+    def hyperparameter_search(self,rnd):
 
+
+        N_hp_sets,job_manager,account,walltime,mem,_,_ = self.dict.get_category_values('Hyperparameter')
         # submit
-        commands = [f"sys.path.append('{os.path.dirname(__file__)}')",
-                    'from active_learning import Active_learning']
-        training_func = 'Active_learning("{}").train_rand_idnn'.format(self.config_path)
+        if self.Model_type=='IDNN':
+            commands = [f"sys.path.append('{os.path.dirname(__file__)}')",
+                    'from active_learning.model.idnn_model import IDNN_Model',
+                    'from active_learning.workflow.dictionary import Dictionary',
+                     f'dict = Dictionary("{os.path.abspath(self.input_path)}")',
+                     'model  = IDNN_Model(dict)']
+        training_func = 'model.train_rand_idnn'.format(self.config_path)
     
-        self.hidden_units, self.lr = hyperparameterSearch(rnd,self.N_hp_sets,commands,training_func, self.job_manager,self.Account,self.Walltime,self.Mem,)
-
+        self.hidden_units, self.lr = hyperparameterSearch(rnd,N_hp_sets,commands,training_func, job_manager,account,walltime,mem,self.OutputFolder)
+        self.model.new_model(self.hidden_units,self.lr)
     
     def IDNN_transforms(self):
 
-        sys.path.append(self.config_path)
+        sys.path.append(self.config_path+self.transform_path)
+        # sys.path.append(self.config_path)
         from TransformsModule import transforms 
 
         return transforms
 
     def better_than_prev(self,rnd):
 
-        [params] = self.data_sampling.read(rnd,only_recent=False)
+        # params = self.model.load_data(rnd)
      
         # Get loss of current idnn
-        current_loss = self.model.loss(params)
+        current_loss = self.model.loss(rnd)
 
         # Get loss of previous idnn
         keras.backend.clear_session()
         lastmodel = self.model.load_model(rnd-1, custom_objects={'Transform': Transform(self.IDNN_transforms())})
-        prev_loss = self.model.loss(params)
+        prev_loss = self.model.loss(rnd)
 
         # Reload current IDNN
+        self.model.load_model(rnd, custom_objects={'Transform': Transform(self.IDNN_transforms())})
         
         if current_loss < prev_loss:
             return True
@@ -160,12 +172,16 @@ class Workflow():
     
     def train(self):
         self.model.train(self.rnd)
-        
+        self.model.save_model(self.rnd)
+    
+
+
         
         
 
 
     def main_workflow(self):
+        # self.model = self.hyperparameter_search(self.rnd)
 
         #If there is no pre-existing data : we first have to do explorative predictions 
         if self.step == 'Explorative':
@@ -178,6 +194,7 @@ class Workflow():
             else:
                 self.step = 'Complete'
 
+
         if self.step == 'Model_training':
             print('Train surrogate model, round ',self.rnd,'...')
             self.train()
@@ -188,6 +205,7 @@ class Workflow():
                 self.exploit(self.model)
         
         self.rnd += 1
+
 
         #should only reach this stage if we are doing data_sampling
         #  
@@ -208,9 +226,9 @@ class Workflow():
             
             #next Training
             self.step == 'Model_training'
-            # if self.rnd == 1 or not self.better_than_prev(self.model):
-            #     print('Perform hyperparameter search...')
-            #     self.model = self.hyperparameter_search(self.rnd)
+            if self.rnd == 1:
+                print('Perform hyperparameter search...')
+                self.hyperparameter_search(self.rnd)
             # else:
             print('Train surrogate model, round ',self.rnd,'...')
             self.train()

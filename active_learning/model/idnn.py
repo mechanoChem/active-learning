@@ -116,3 +116,6 @@ class IDNN(tf.keras.Model):
     return [y,dy,ddy]  
 
 
+# get_config function needed here?
+#Mostafa 
+# WARNING:tensorflow:Model's `__init__()` arguments contain non-serializable objects. Please implement a `get_config()` method in the subclassed Model for proper saving and loading. Defaulting to empty config.
