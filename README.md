@@ -1,13 +1,14 @@
 # active-learning
 
-Active Learning Specific version of MechanoChemML
+Active Learning Customizable Workflow. 
 
-The surrogate_weights, ini file, monte_settings and Q matrix are specific to LCO, and must be changed for different materials.
+The workflow developed here can train a model, update model parameters, recommend data to sample, and collect the data.Currently the workflow includes an IDNN model, hyperpameter searches, monte carlo calculations, and data recommendations based on sobol sequence, billiardwalk, random space sampling, samping near wells, sampling near vertices, high error points, finding wells and sampling, and finding non-convexities and sampling. 
 
-The data_generation_surrogate_temp file is a substitute for monte carlo simulations for workflow testing purposes.
+The workflow is readily adapatable for a variety of problems, and could be used for different models and different sampling mechanisms, including working with experimental results. 
+
 
 To run:
-python main.py LCO_test.ini
+python main.py input.ini
 
 
 Requirements

@@ -90,10 +90,10 @@ class DataRecommender():
     # Find "wells" (regions of convexity, with low gradient norm)
 
     # First, rereference the free energy
-        if self.model.unique_inputs:
-            pred = self.model.predict([x,x,x,T])
-        else:
-            pred = self.model.predict(x,T)
+        input = self.input.copy()
+        output = self.output.copy()
+        pred = self.output_pred.copy()
+
         mu_test = 0.01*pred[1]
         if rereference:
             eta_test = np.array([bounds[0]*np.ones(dim),
@@ -219,7 +219,6 @@ class DataRecommender():
                                         N_boundary=N_b)
             output = np.hstack((output,eta[0:self.N_global_pts,:]))
 
-        print('output1',np.shape(output))
         for domain in self.sampling_dict['continuous_independent']:
             outputorder.append([domain])
             range = self.sampling_dict['continuous_independent'][domain]
@@ -235,7 +234,6 @@ class DataRecommender():
             random_discrete = np.reshape(random_discrete,(self.N_global_pts,1))
             output = np.hstack((output,random_discrete))
         
-        print('output2',np.shape(output))
         output = output[:,1:]
         self.write(rnd, test_set, output)       
 
@@ -247,11 +245,9 @@ class DataRecommender():
    ########################################
         ##exploit hessian values
     def hessian(self,rnd,tol=0.1):
-        input,output = self.load_data(rnd-1)
-        print('Predicting...')
-
-        # T_test_adjust = (T_test - ((self.Tmax - self.Tmin)/2))/(self.Tmax - ((self.Tmax - self.Tmin)/2))
-        pred = self.model.predict(input)
+        input = self.input.copy()
+        output = self.output.copy()
+        pred = self.output_pred.copy()
         free = pred[0]
         mu = pred[1]
         hessian= pred[2]
@@ -296,21 +292,21 @@ class DataRecommender():
             print('No data points in hessian tolerance')
         return input_local
     ########################################
+
+    def get_latest_pred(self,rnd):
+        print('Loading data...')
+        self.input,self.output = self.load_data(rnd-1)
+        print('Predicting...')
+        self.output_pred = self.model.predict(self.input)
     
     def high_error(self,rnd):
         
-        # local error
-        print('Loading data...')
-        input,output = self.load_data(rnd-1)
-
-        print('Predicting...')
-        output_pred = self.model.predict(input)
 
         print('Finding high pointwise error...')
 
-        # print(input)
-
-        # input = np.array(input)
+        input = self.input.copy()
+        output = self.output.copy()
+        output_pred = self.output_pred.copy()
 
         input_local = []
 

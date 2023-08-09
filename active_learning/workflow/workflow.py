@@ -109,6 +109,7 @@ class Workflow():
     
     def exploit(self,model):
         [self.sample_wells,self.sample_vertices,self.test_set] = self.dict.get_individual_keys(['sample_wells','sample_vertices','test_set'])
+        self.recommender.get_latest_pred(self.rnd)
         if self.sample_high_error == True:
             self.recommender.high_error(self.rnd)
         if self.sample_hessian == True:
