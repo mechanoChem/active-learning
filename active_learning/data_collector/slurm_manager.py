@@ -30,12 +30,12 @@ def checkPending(name):
 def submitJob(command,specs={},is_dnsml=False):
 
     # Default values for LSF job script
-    default = {'wall_time':'12:00:00',
+    default = {'wall_time':'2:00:00',
                'nodes':1,
                'ntasks-per-node':1,
                'total_memory':'1G',
                'job_name':'default',
-               'output_folder':'.',
+               'output_folder':'output',
                'queue':'shared'}
 
     # Incoporate any changes to the defaults
@@ -55,8 +55,8 @@ def submitJob(command,specs={},is_dnsml=False):
             fout.write('#SBATCH --gpus=1\n')
         if 'array' in default:
             fout.write("#SBATCH --array={}                  # job array\n".format(default['array']))
-        fout.write('#SBATCH -e {}/errors.%J       # error file name in which %J is replaced by the job ID \n'.format(default["output_folder"]))
-        fout.write('#SBATCH -o {}/output.%J       # output file name in which %J is replaced by the job ID\n'.format(default["output_folder"]))
+        fout.write('#SBATCH -e errors.%J       # error file name in which %J is replaced by the job ID \n')
+        fout.write('#SBATCH -o output.%J       # output file name in which %J is replaced by the job ID\n')
         fout.write('#SBATCH -p {}                       # choose the queue (partition) to use\n\n'.format(default["queue"]))
         fout.write('#SBATCH --export=ALL\n\n')
 

@@ -61,7 +61,7 @@ def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, wall
             call('python '+ 'optimize_hparameters.py', shell=True)
             #call('python ' + str(script), shell=True)
         else:      
-            from slurm_manager import numCurrentJobs, submitJob
+            from active_learning.data_collector.slurm_manager import numCurrentJobs, submitJob
             submitJob(script,specs)
 
 def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account, walltime, memory,outputfolder):
@@ -82,7 +82,7 @@ def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account,
 
     # Wait for jobs to finish
     if job_manager != 'PC':
-        from slurm_manager import numCurrentJobs, submitJob
+        from active_learning.data_collector.slurm_manager import numCurrentJobs, submitJob
         sleep(20)
         while ( numCurrentJobs('optimizeHParameters') > 0):
             sleep(15)

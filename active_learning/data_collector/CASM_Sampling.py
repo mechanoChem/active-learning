@@ -5,7 +5,7 @@ import os, shutil, copy
 import fileinput as fin
 from time import sleep
 from shutil import copyfile
-from active_learning.data_collector.Sampling import Sampling
+from active_learning.data_collector.sampling import Sampling
 import pandas as pd
 
 class CASM_Sampling(Sampling):    
@@ -195,9 +195,9 @@ class CASM_Sampling(Sampling):
                         for j in range(len(kappa[0])):
                             phiA[str(j)] = float(phi[i,j])
                             kappaA[str(j)] = float(kappa[i,j])
-                        TA = T[i,0]
-                        if ~isinstance(TA,str):
-                            TA = str(TA)
+                        TA = float(T[i,0])
+                        # if ~isinstance(TA,str):
+                        #     TA = str(TA)
                         inputF['driver']['custom_conditions']+=[{'tolerance': 0.001,
                                                             'temperature': TA,
                                                             'bias_phi': phiA,
@@ -222,7 +222,7 @@ class CASM_Sampling(Sampling):
                         'python -u {}/data_generation_surrogate_temp.py monte_settings_$LSB_JOBINDEX.json {}'.format(os.path.dirname(__file__), string),
                         'cd ../'] 
             elif self.job_manager == 'slurm':
-                command = ['cd job_$SLURM_ARRAY_TASK_ID',
+                command = [f'cd {self.OutputFolder}/data/data_sampled/job_$SLURM_ARRAY_TASK_ID',
                         'python -u {}/data_generation_surrogate_temp.py monte_settings_$SLURM_ARRAY_TASK_ID.json {}'.format(os.path.dirname(__file__), string),
                         'cd ../']
 
@@ -243,7 +243,7 @@ class CASM_Sampling(Sampling):
                         '. $ANACONDA3HOME/etc/profile.d/conda.sh',
                         'conda activate /home/jholber/.conda/envs/casm',
                         'cwd=$PWD',
-                        'mv job_$SLURM_ARRAY_TASK_ID {}'.format(self.dir),
+                        'mv {}/data/data_sampled/job_$SLURM_ARRAY_TASK_ID {}'.format(self.OutputFolder,self.dir),
                         'cd {}/job_$SLURM_ARRAY_TASK_ID'.format(self.dir),
                         #'$CASMPREFIX/bin/casm monte -s monte_settings_$SLURM_ARRAY_TASK_ID.json',
                         'casm monte -s monte_settings_$SLURM_ARRAY_TASK_ID.json',
@@ -258,7 +258,7 @@ class CASM_Sampling(Sampling):
                 call(command[job],shell=True)
         else:
             if self.job_manager == 'slurm':
-                from slurm_manager import submitJob, waitForAll
+                from active_learning.data_collector.slurm_manager import submitJob, waitForAll
                 specs = {'job_name':'CASM',
                         'array': '1-{}'.format(self.N_jobs),
                         'account': self.account,
