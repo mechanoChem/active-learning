@@ -15,17 +15,25 @@ class CASM_Sampling(Sampling):
         super().__init__(model,dictionary)
         self.model = model
         self.dict = dictionary 
-        [self.dir, self.version, self.job_manager,self.account,self.walltime,
-         self.mem,self.Initial_mu,self.phi,self.N_jobs,self.surrogate] = self.dict.get_category_values('CASM Data Generation')
-        if self.surrogate:
-            [self.Hidden_Layers, self.Input_Shape, self.dim, self.CASM_version, self.data_gen_activation, self.folder]=self.dict.get_category_values('CASM Surrogate')
+        [self.data_gen_source] = self.dict.get_individual_keys('Main',['data_generation_source'])
 
+        if self.data_gen_source == 'CASM':
+            [self.dir, self.version, self.Initial_mu,self.phi,self.N_jobs] = self.dict.get_category_values('CASM')
+        else:
+            [self.dir, self.version, self.Initial_mu,self.phi,self.N_jobs,self.Hidden_Layers, self.Input_Shape, self.dim, self.CASM_version, self.data_gen_activation, self.folder] = self.dict.get_category_values('CASM_Surrogate')
+            # [self.Hidden_Layers, self.Input_Shape, self.dim, self.CASM_version, self.data_gen_activation, self.folder]=self.dict.get_category_values('CASM Surrogate')
+
+        print('hidden layers',self.Hidden_Layers)
         [self.Model_type,    
          self.Data_Generation, self.Data_Generation_Source, self.restart,
-         self.input_data,self.input_alias,self.output_alias,_,_, self.iterations,
-         self.OutputFolder, self.seed, self.Input_dim, self.derivative_dim, self.output_dim,_] = self.dict.get_category_values('Overview')
+         self.input_data,self.input_alias,self.output_alias, self.iterations,
+         self.OutputFolder, self.seed, self.Input_dim, self.derivative_dim, self.output_dim,_] = self.dict.get_category_values('Main')
+        
+        [self.job_manager,self.account,self.walltime,self.mem] = self.dict.get_category_values('Sampling_Job_Manager')
         
         self.sampling_dict = self.dict.get_category('Sampling')
+
+        print('input dim',self.Input_dim)
 
 
 
@@ -36,6 +44,9 @@ class CASM_Sampling(Sampling):
         T = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,-self.derivative_dim-1:-self.derivative_dim]
         return eta,mu,T
     
+    def read(self,rnd,singleRnd=True):
+        return np.genfromtxt(self.OutputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt',dtype=np.float32)
+
     def write(self,rnd):
         kappa = []
         eta = []
@@ -198,7 +209,7 @@ class CASM_Sampling(Sampling):
 
 
         command = []
-        if self.surrogate:
+        if self.Data_Generation_Source == 'CASM_Surrogate':
             data_generation = [self.Hidden_Layers, self.Input_Shape, self.dim, self.CASM_version, self.data_gen_activation, self.folder]
             string = ""
             for i in data_generation:

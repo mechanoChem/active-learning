@@ -23,50 +23,53 @@ class DataRecommender():
     def __init__(self,model,dictionary): 
         self.dict = dictionary
         self.model = model
-        [self.domain, self.N_global_pts, self.wells,self.sample_well,self.sample_vertice] = self.dict.get_category_values('Sampling Domain')
-        [self.input_alias,self.outputFolder] = self.dict.get_individual_keys(['input_alias','outputfolder'])
-        [self.sample_hessian,self.hessian_repeat, self.hessian_repeat_points,self.sample_high_error, self.high_error_repeat, self.high_error_repeat_points] = self.dict.get_category_values('Exploit Parameters')
+        [self.N_global_pts, self.sample_known_wells,self.wells,
+         self.wells_points,self.sample_known_vertice,self.vertices, 
+         self.vertice_points] = self.dict.get_category_values('Explore_Parameters')
+        # [self.input_alias,self.OutputFolder] = self.dict.get_individual_keys(['input_alias','OutputFolder'])
+        [self.sample_hessian,self.hessian_repeat, self.hessian_repeat_points,
+         self.sample_high_error, self.high_error_repeat, self.high_error_repeat_points,
+         self.exploit_find_wells, self.wells_repeat,self.wells_repeat_points] = self.dict.get_category_values('Exploit_Parameters')
         self.header = ''
 
         [self.Model_type,    
          self.Data_Generation, self.Data_Generation_Source, self.restart,
-         self.input_data,self.input_alias,self.output_alias,_,_, self.iterations,
+         self.input_data,self.input_alias,self.output_alias, self.iterations,
          self.OutputFolder, self.seed, self.Input_dim, self.derivative_dim,
-         self.output_dim,self.config_path] = self.dict.get_category_values('Overview')
+         self.output_dim,self.config_path] = self.dict.get_category_values('Main')
 
         self.sampling_dict = self.dict.get_category('Sampling')
 
 
 
     def write(self,rnd,type,output):
-        np.savetxt(self.outputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt',output,fmt='%.12f',
+        np.savetxt(self.OutputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt',output,fmt='%.12f',
                     header=self.header)
         
-        if os.path.isfile(self.outputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt'):
-            allResults = np.loadtxt(self.outputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt')
+        if os.path.isfile(self.OutputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt'):
+            allResults = np.loadtxt(self.OutputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt')
             output = np.vstack((allResults,output))
-        np.savetxt(self.outputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt',
+        np.savetxt(self.OutputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt',
                     output,
                     fmt='%.12f',
                     header=self.header)
 
 
-        if os.path.isfile(self.outputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt'):
-            allResults = np.loadtxt(self.outputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt')
+        if os.path.isfile(self.OutputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt'):
+            allResults = np.loadtxt(self.OutputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt')
             output = np.vstack((allResults,output))
-        np.savetxt(self.outputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt',
+        np.savetxt(self.OutputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt',
                     output,
                     fmt='%.12f',
                     header=self.header)
 
-    # def print():
 
     def load_data(self,rnd,singleRnd=True):
         print('loading data')
         if singleRnd:
-            input, input_non_derivative, output =  np.load(self.outputFolder + 'data/data_sampled/results{}.npy'.format(rnd),allow_pickle=True)
+            input, input_non_derivative, output =  np.load(self.OutputFolder + 'data/data_sampled/results{}.npy'.format(rnd),allow_pickle=True)
         else:
-            input, input_non_derivative, output =  np.load(self.outputFolder + 'data/data_sampled/allResults{}.npy'.format(rnd),allow_pickle=True)
+            input, input_non_derivative, output =  np.load(self.OutputFolder + 'data/data_sampled/allResults{}.npy'.format(rnd),allow_pickle=True)
         
         j=0
         for i in range(np.size(self.input_alias)):
@@ -85,7 +88,7 @@ class DataRecommender():
         
         return input,output
 
-    def find_wells(self,x,T,dim=4,bounds=[0,0.25],rereference=True):
+    def find_wells(self,x,dim=4,bounds=[0,0.25],rereference=True):
 
     # Find "wells" (regions of convexity, with low gradient norm)
 
@@ -113,6 +116,7 @@ class DataRecommender():
         gradNorm = gradNorm[ind2]
 
         ind3 = np.argsort(gradNorm)
+        #EDIT
         
         # Return eta values with local convexity, sorted by gradient norm (low to high)
 
@@ -180,13 +184,17 @@ class DataRecommender():
 
         return mu_test
 
-    def explore(self,rnd,test_set, x_bounds=[]):
+    def explore(self,rnd):
 
         output = np.ones((self.N_global_pts,1))
         outputorder = []
 
         for domain in self.sampling_dict['continuous_dependent'] :
             outputorder.append(self.sampling_dict['continuous_dependent'][domain]['values'])
+            # print(self.sampling_dict['continuous_dependent'][domain])
+
+            test_set = self.sampling_dict['continuous_dependent'][domain]['type']
+
             
         # sample with sobol
             if test_set == 'sobol':
@@ -234,6 +242,8 @@ class DataRecommender():
             random_discrete = np.reshape(random_discrete,(self.N_global_pts,1))
             output = np.hstack((output,random_discrete))
         
+    #EDIT - reorder these to match input_alias 
+        
         output = output[:,1:]
         self.write(rnd, test_set, output)       
 
@@ -275,7 +285,7 @@ class DataRecommender():
         for column in input:
 
             col = column[I]
-
+            #EDIT should be 
             input_a = np.repeat(col[:self.hessian_repeat_points[0]],self.hessian_repeat[0],axis=0)
             input_b = np.repeat(col[self.hessian_repeat_points[0]:self.hessian_repeat_points[0]+self.hessian_repeat_points[1]],self.hessian_repeat[1],axis=0)
             input_local_col = np.vstack((input_a,input_b))
@@ -294,7 +304,7 @@ class DataRecommender():
     ########################################
 
     def get_latest_pred(self,rnd):
-        print('Loading data...')
+        # print('Loading data...')
         self.input,self.output = self.load_data(rnd-1)
         print('Predicting...')
         self.output_pred = self.model.predict(self.input)

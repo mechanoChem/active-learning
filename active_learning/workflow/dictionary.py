@@ -1,39 +1,47 @@
 import numpy as np
 from configparser import ConfigParser
 import os
+import json
+import sys
 
 
 class Dictionary():
 
     def __init__(self, input_file):
+
+        # print(sys.path)
+
+        with open('../../active_learning/workflow/sample.json') as json_file:
+            self.dict = json.load(json_file)
+        # print(self.dict)
         self.construct_dict(input_file)
         self.maintain_input()
-        self.dict['Overview']['dir_path'] = os.path.dirname(input_file)
-        # print(self.dict['Overview'])
+        self.dict['Main']['dir_path'] = os.path.dirname(input_file)
+
         # try:
         #     self.maintain_input()
         # except:
         #     print('Missing input data')
+        #     return -1
+        
+        # return 0
 
 
     def construct_dict(self,input_file):
         self.config = ConfigParser()
         self.config.read(input_file)
         self.sections = self.config.sections()
-        self.dict = {}
         for sec in self.sections:
-            self.dict[sec] = {}
-            self.dict[sec].update(dict(self.config.items(sec)))
+            if sec in self.dict:
+                for item in self.config.items(sec):
+                    self.dict[sec][item[0]] = item[1]
+            else:
+                self.dict[sec] = {}
+                self.dict[sec].update(dict(self.config.items(sec)))
 
 
-
-    def get_individual_keys(self,keylist):
-        values = []
-        for key in keylist:
-            for sec in self.sections:
-                if key in self.dict[sec]:
-                    values.append(self.dict[sec][key])
-        return values
+    def get_individual_keys(self,category,keylist):
+        return [self.dict[category][key] for key in keylist]
 
     def get_category_values(self,category):
         return self.dict[category].values()
@@ -41,25 +49,40 @@ class Dictionary():
     def get_category(self,category):
         return self.dict[category]
     
-    def set_as_int(self, inputs):
+    def set_as_int(self, inputs,nullallowed=False):
         for i in range(np.shape(inputs)[0]):
-            self.dict[inputs[i][0]][inputs[i][1]] = int(self.dict[inputs[i][0]][inputs[i][1]])
+            if self.dict[inputs[i][0]][inputs[i][1]] != None:
+                self.dict[inputs[i][0]][inputs[i][1]] = int(self.dict[inputs[i][0]][inputs[i][1]])
+            elif not nullallowed:
+                raise Exception('Input',inputs[i],'is null')
     
-    def set_as_int_array(self,inputs):
+    def set_as_int_array(self,inputs,nullallowed=False):
         for i in range(np.shape(inputs)[0]):
-            self.dict[inputs[i][0]][inputs[i][1]] =[int(p) for p in self.dict[inputs[i][0]][inputs[i][1]].split(',')]
+            if self.dict[inputs[i][0]][inputs[i][1]] != None:
+                self.dict[inputs[i][0]][inputs[i][1]] =[int(p) for p in self.dict[inputs[i][0]][inputs[i][1]].split(',')]
+            elif not nullallowed:
+                raise Exception('Input',inputs[i],'is null')
 
-    def set_as_float(self, inputs):
+    def set_as_float(self, inputs,nullallowed=False):
         for i in range(np.shape(inputs)[0]):
-            self.dict[inputs[i][0]][inputs[i][1]] = float(self.dict[inputs[i][0]][inputs[i][1]])
+            if self.dict[inputs[i][0]][inputs[i][1]] != None:
+                self.dict[inputs[i][0]][inputs[i][1]] = float(self.dict[inputs[i][0]][inputs[i][1]])
+            elif not nullallowed:
+                raise Exception('Input',inputs[i],'is null')
     
-    def set_as_float_array(self,inputs):
+    def set_as_float_array(self,inputs,nullallowed=False):
         for i in range(np.shape(inputs)[0]):
-            self.dict[inputs[i][0]][inputs[i][1]] =[float(p) for p in self.dict[inputs[i][0]][inputs[i][1]].split(',')]
+            if self.dict[inputs[i][0]][inputs[i][1]] != None:
+                self.dict[inputs[i][0]][inputs[i][1]] =[float(p) for p in self.dict[inputs[i][0]][inputs[i][1]].split(',')]
+            elif not nullallowed:
+                raise Exception('Input',inputs[i],'is null')
     
-    def set_as_str_array(self,inputs):
+    def set_as_str_array(self,inputs,nullallowed=False):
         for i in range(np.shape(inputs)[0]):
-            self.dict[inputs[i][0]][inputs[i][1]] =[str(p) for p in self.dict[inputs[i][0]][inputs[i][1]].split(',')]
+            if self.dict[inputs[i][0]][inputs[i][1]] != None:
+                self.dict[inputs[i][0]][inputs[i][1]] =[str(p) for p in self.dict[inputs[i][0]][inputs[i][1]].split(',')]
+            elif not nullallowed:
+                raise Exception('Input',inputs[i],'is null')
     
 
     def set_as_true_false(self,inputs):
@@ -78,43 +101,79 @@ class Dictionary():
         float_array_inputs = []
         str_array_inputs = []
         true_false = []
-        if self.dict['Overview']['model'] == 'IDNN':
-            int_inputs +=[ ['Neural Network','epochs'],['Neural Network','batch_size'],['Neural Network','n_sets'] ]
-            int_array_inputs += [['Neural Network','hidden_units'],['Neural Network','layers'],['Neural Network','neurons']]
-            str_array_inputs += [['Neural Network','activation']]
-            float_array_inputs += [['Neural Network','learningrate']]
-            float_inputs += [['Neural Network','dropout'],['Neural Network','learning'],['Neural Network','validation_split']]
-            assert('optimizer' in self.dict['Neural Network'])
+        if self.dict['Main']['model'] == 'IDNN':
+            int_inputs +=[  ['IDNN','layers'], ['IDNN','neurons'], ['IDNN','epochs'],['IDNN','batch_size'] ]
+            str_array_inputs += [['IDNN','activation'],['IDNN','loss']]
+            float_inputs += [['IDNN','dropout'],['IDNN','learning'],['IDNN','lr_decay'],['IDNN','factor'],['IDNN','patience'],['IDNN','min_lr'], ['IDNN','validation_split']]
+            assert('optimizer' in self.dict['IDNN'])
+            true_false += [['IDNN','idnn_hyperparameter']]
+            float_array_inputs += [['IDNN','loss_weights']]
+            if self.dict['IDNN']['idnn_hyperparameter'] == 'True':
+                int_inputs += [['IDNN_Hyperparameter','n_sets']]
+                str_array_inputs += [['IDNN_Hyperparameter','activation'],['IDNN_Hyperparameter','optimizer']]
+                self.set_as_int_array([['IDNN_Hyperparameter','layers'],['IDNN_Hyperparameter','neurons'], ['IDNN_Hyperparameter','epochs'],['IDNN_Hyperparameter','batch_size']],nullallowed=True)
+                self.set_as_float_array([['IDNN_Hyperparameter','dropout'],['IDNN_Hyperparameter','learning'], ['IDNN_Hyperparameter','lr_decay'],['IDNN_Hyperparameter','factor'],['IDNN_Hyperparameter','patience'],['IDNN_Hyperparameter','min_lr']],nullallowed=True)
+      
 
-        true_false += [['Overview','data_generation']]
-        if self.dict['Overview']['data_generation'] == 'True':
-            true_false += [['CASM Data Generation','surrogate']]
-            if self.dict['Overview']['data_generation_source'] == 'CASM':
-                assert(os.path.exists(self.dict['CASM Data Generation']['casm_project_dir']))
-                if self.dict['CASM Data Generation']['job_manager']=='slurm':
-                    assert('account' in self.dict['CASM Data Generation'])
-                    assert('walltime' in self.dict['CASM Data Generation'])
-                    assert('mem' in self.dict['CASM Data Generation'])
-                assert('initial_mu' in self.dict['CASM Data Generation'])
-                float_array_inputs += [['CASM Data Generation','phi']]
-                int_inputs += [['CASM Data Generation','n_jobs']]
+        true_false += [['Main','data_generation']]
+        if self.dict['Main']['data_generation'] == 'True':
+            if self.dict['Main']['data_generation_source'] == 'CASM':
+                assert(os.path.exists(self.dict['CASM']['casm_project_dir']))
+                assert('initial_mu' in self.dict['CASM'])
+                if self.dict["CASM"]["casm_version"] == '0.3.X':
+                    self.dict["CASM"]["casm_version"] = 'LCO'
+                float_array_inputs += [['CASM','phi']]
+                int_inputs += [['CASM','n_jobs']]
+            if self.dict['Main']['data_generation_source'] == 'CASM_Surrogate':
+                assert(os.path.exists(self.dict['CASM_Surrogate']['casm_project_dir']))
+                assert(os.path.exists(self.dict['CASM_Surrogate']['transforms_directory']))
+                assert('initial_mu' in self.dict['CASM_Surrogate'])
+                assert('activation' in self.dict['CASM_Surrogate'])
+                if self.dict['CASM_Surrogate']["casm_version"] == '0.3.X':
+                    self.dict['CASM_Surrogate']["casm_version"] = 'LCO'
+                # int_array_inputs += [['CASM_Surrogate','hidden_layers']]
+                float_array_inputs += [['CASM_Surrogate','phi']]#,['CASM_Surrogate','input_shape']]
+                int_inputs += [['CASM_Surrogate','n_jobs'],['CASM_Surrogate','dim']]
+                if self.dict['CASM_Surrogate']["version"] == '0.3.X':
+                    self.dict['CASM_Surrogate']["version"] = 'LCO'
+
+            if self.dict['Sampling_Job_Manager']['job_manager']=='slurm':
+                assert('account' in self.dict['Sampling_Job_Manager'])
+                assert('walltime' in self.dict['Sampling_Job_Manager'])
+                assert('mem' in self.dict['Sampling_Job_Manager'])
+            
 
 
-        true_false += [['Overview','restart'],['Overview','input_data'],['Exploit Parameters','hessian'],['Exploit Parameters','high_error'],['Sampling Domain','sample_vertices']]
-        str_array_inputs += [['Overview','input_alias'],['Overview','output_alias'],['Sampling Domain','sample_wells']]
-        int_inputs += [['Overview','iterations'],['Overview','seed'],['Sampling Domain','global_points'],['Hyperparameter','n_sets']]
+        true_false += [['Main','restart'],['Main','input_data'],['Exploit_Parameters','hessian'],
+                       ['Exploit_Parameters','high_error'],['Explore_Parameters','sample_known_wells'],
+                       ['Explore_Parameters','sample_known_vertices'],['Exploit_Parameters','hessian'],
+                       ['Exploit_Parameters','high_error'],['Exploit_Parameters','find_wells']]
+        str_array_inputs += [['Main','input_alias'],['Main','output_alias']]
+        int_inputs += [['Main','iterations'],['Main','seed'],['Explore_Parameters','global_points']]
 
 
-        if self.dict['Exploit Parameters']['hessian'] == 'True':
-            int_array_inputs += [['Exploit Parameters','hessian_repeat'],['Exploit Parameters','hessian_repeat_points']]
-        if self.dict['Exploit Parameters']['high_error'] == 'True':
-            int_array_inputs += [['Exploit Parameters','high_error_repeat'],['Exploit Parameters','high_error_repeat_points']]
+        if self.dict['Exploit_Parameters']['hessian'] == 'True':
+            int_array_inputs += [['Exploit_Parameters','hessian_repeat'],['Exploit_Parameters','hessian_repeat_points']]
+        if self.dict['Exploit_Parameters']['high_error'] == 'True':
+            int_array_inputs += [['Exploit_Parameters','high_error_repeat'],['Exploit_Parameters','high_error_repeat_points']]
+        if self.dict['Exploit_Parameters']['find_wells'] == 'True':
+            int_array_inputs += [['Exploit_Parameters','wells_repeat'],['Exploit_Parameters','wells_repeat_points']]
 
-        str_array_inputs += [['Training','loss']]
-        float_array_inputs +=[['Training','loss_weights']]
-        float_inputs += [['Training','lr_decay'],['Training','factor'],['Training','patience']]
-        int_array_inputs += [['Sampling Domain','domain'],['Hyperparameter','layers_range'],['Hyperparameter','neurons_range']]
-        # float_array_inputs += [['Sampling Domain','x0']]
+        if self.dict['Explore_Parameters']['sample_known_wells'] == 'True':
+            int_inputs += [['Explore_Parameters','wells_points']]
+            assert(os.path.exists(self.dict['Explore_Parameters']['wells']))
+        if self.dict['Explore_Parameters']['sample_known_vertices'] == 'True':
+            int_inputs += [['Explore_Parameters','vertices_points']]
+            assert(os.path.exists(self.dict['Explore_Parameters']['vertices']))
+
+
+        # str_array_inputs += [['Training','loss']]
+        # float_array_inputs +=[['Training','loss_weights']]
+        # float_inputs += [['Training','lr_decay'],['Training','factor'],['Training','patience']]
+        
+        
+        
+        # int_array_inputs += [['Hyperparameter','layers_range'],['Hyperparameter','neurons_range']]
 
         
 
@@ -129,23 +188,23 @@ class Dictionary():
 
         input_dim = 0
         derivative_dim = 0
-        output_dim = 0 #np.size(self.dict['Overview']['output_alias'])
+        output_dim = 0 #np.size(self.dict['Main']['output_alias'])
         self.dict['Sampling'] = {}
         self.dict['Sampling']['continuous_dependent'] = {}
         self.dict['Sampling']['continuous_independent'] = {}
         self.dict['Sampling']['discrete'] = {}
-        for input in self.dict['Overview']['input_alias']:
+        for input in self.dict['Main']['input_alias']:
             self.set_as_int([[input,'dimensions']])
             if self.dict[input]['domain_type']=='continuous_dependent':
                 domain = self.dict[input]['domain']
                 if domain not in self.dict['Sampling']['continuous_dependent']:
                     self.dict['Sampling']['continuous_dependent'][domain] = {'values': [input], 'dim':self.dict[input]['dimensions']}
-                    test_set = self.dict[domain]['test_set']
-                    self.dict['Sampling']['continuous_dependent'][domain]['type'] = test_set
-                    if test_set == 'billiardwalk':
+                    space_filling_method = self.dict[domain]['space_filling_method']
+                    self.dict['Sampling']['continuous_dependent'][domain]['type'] = space_filling_method
+                    if space_filling_method == 'billiardwalk':
                         self.set_as_float_array([[domain,'x0']])
                         self.dict['Sampling']['continuous_dependent'][domain]['x0'] = self.dict[domain]['x0']
-                    elif test_set == 'sobol':
+                    elif space_filling_method == 'sobol':
                         self.dict['Sampling']['continuous_dependent'][domain]['x_bounds'] = self.dict[domain]['x_bounds']
                     self.dict['Sampling']['continuous_dependent'][domain]['filepath'] = self.dict[domain]['filepath']
                 else: 
@@ -160,7 +219,7 @@ class Dictionary():
             if self.dict[input]['derivative_dim']:
                 derivative_dim += self.dict[input]['dimensions']
         
-        for output in self.dict['Overview']['output_alias']:
+        for output in self.dict['Main']['output_alias']:
             self.set_as_int([[output,'derivative'],[output,'dimensions']])
             self.set_as_float_array([[output,'adjust']])
             output_dim += self.dict[output]['dimensions']
@@ -168,9 +227,9 @@ class Dictionary():
 
 
 
-        self.dict['Overview']['Input_dim'] = input_dim
-        self.dict['Overview']['Derivative_dim'] = derivative_dim    
-        self.dict['Overview']['Output_dim'] = output_dim
+        self.dict['Main']['input_dim'] = input_dim
+        self.dict['Main']['derivative_dim'] = derivative_dim    
+        self.dict['Main']['output_dim'] = output_dim
 
 
                 
