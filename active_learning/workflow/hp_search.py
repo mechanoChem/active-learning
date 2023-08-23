@@ -98,7 +98,7 @@ def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account,
             os.remove('hparameters_'+str(i)+'.txt')
 
     # Sort by l2norm
-    print('hparameters: ', hparameters)
+    # print('hparameters: ', hparameters)
     sortedHP = sorted(hparameters,key=itemgetter(2))
     # self.outputFolder+ 'training/
 
@@ -111,7 +111,7 @@ def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account,
     # Clean up checkpoint files
     #os.rename('idnn_{}_{}.h5'.format(rnd,sortedHP[0][2]),'idnn_{}.h5'.format(rnd))
     shutil.rmtree(outputfolder + 'training/model_{}/model'.format(rnd),ignore_errors=True)
-    print('sortedhp', sortedHP)
+    # print('sortedhp', sortedHP)
     os.rename(outputfolder + 'training/model_{}/'.format(sortedHP[0][1]),outputfolder + 'training/model_{}/'.format(rnd))
     copyfile(outputfolder +'training/training_{}.txt'.format(sortedHP[0][1]),outputfolder +'training/training_{}.txt'.format(rnd))
     for i in range(N_sets):

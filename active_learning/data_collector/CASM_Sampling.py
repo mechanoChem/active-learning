@@ -23,7 +23,7 @@ class CASM_Sampling(Sampling):
             [self.dir, self.version, self.Initial_mu,self.phi,self.N_jobs,self.Hidden_Layers, self.Input_Shape, self.dim, self.CASM_version, self.data_gen_activation, self.folder] = self.dict.get_category_values('CASM_Surrogate')
             # [self.Hidden_Layers, self.Input_Shape, self.dim, self.CASM_version, self.data_gen_activation, self.folder]=self.dict.get_category_values('CASM Surrogate')
 
-        print('hidden layers',self.Hidden_Layers)
+        # print('hidden layers',self.Hidden_Layers)
         [self.Model_type,    
          self.Data_Generation, self.Data_Generation_Source, self.restart,
          self.input_data,self.input_alias,self.output_alias, self.iterations,
@@ -33,7 +33,7 @@ class CASM_Sampling(Sampling):
         
         self.sampling_dict = self.dict.get_category('Sampling')
 
-        print('input dim',self.Input_dim)
+        # print('input dim',self.Input_dim)
 
 
 

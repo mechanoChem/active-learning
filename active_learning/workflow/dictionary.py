@@ -176,6 +176,8 @@ class Dictionary():
         # int_array_inputs += [['Hyperparameter','layers_range'],['Hyperparameter','neurons_range']]
 
         
+        if self.dict['Main']['restart'] == 'True':
+            int_inputs += [['Restart','rnd']]
 
         self.set_as_int(int_inputs)
         self.set_as_int_array(int_array_inputs)

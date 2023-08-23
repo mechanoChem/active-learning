@@ -294,7 +294,7 @@ class DataRecommender():
         input_local = self.relevent_columns(input_local)
 
         # print(np.shape(input_local))
-        print(np.shape(input_local)[0])
+        # print(np.shape(input_local)[0])
 
         if np.shape(input_local)[0] != 0:
             self.write(rnd, 'hessian', input_local)

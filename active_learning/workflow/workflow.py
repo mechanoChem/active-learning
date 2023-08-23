@@ -1,7 +1,7 @@
 import os, sys
 import numpy as np
 from datetime import datetime
-import shutil
+import shutil, json
 from shutil import copyfile
 from tensorflow import keras
 from active_learning.workflow.dictionary import Dictionary
@@ -29,10 +29,7 @@ class Workflow():
 
         [self.sample_hessian,self.hessian_repeat, self.hessian_repeat_points,self.sample_high_error,
         self.high_error_repeat, self.high_error_repeat_points, self.find_wells, self.wells_repeat,self.wells_repeat_points] = self.dict.get_category_values('Exploit_Parameters')
-        
-        if self.restart=='True':
-            self.read_restart(self.Restart_path)
-        else:
+        if self.restart==False:
             self.rnd=0
             if  os.path.exists(self.OutputFolder + 'training'):
                 shutil.rmtree(self.OutputFolder +'training')
@@ -50,13 +47,14 @@ class Workflow():
             os.mkdir(self.OutputFolder +'data/data_recommended')
             os.mkdir(self.OutputFolder +'data/data_sampled')
             os.mkdir(self.OutputFolder +'data/outputFiles')
-            self.construct_model()
         if self.Input_data:
-            #self.step=1 is explorative sampling, self.step=2 is model training, self.step=3 is hyperparameter search 
             self.step = 'Model_training'
             self.handle_input_data(self.Input_data)
         else:
             self.step = 'Explorative'
+        self.construct_model()
+        if self.restart==True:
+            self.read_restart()
         if self.Data_Generation:
             if self.Data_Generation_Source=='CASM' or self.Data_Generation_Source=='CASM_Surrogate':
                 self.sampling = CASM_Sampling(self.model, self.dict)
@@ -71,12 +69,16 @@ class Workflow():
 
 
 
-    def read_restart(self,input_path):
-         self.dict_restart = Dictionary(input_path)
-         [self.rnd, self.step, self.input_data, self.model] = self.dict_restart.get_category_values('Restart')
+    def read_restart(self):
+        #  self.dict_restart = Dictionary(input_path)
+         [self.rnd, self.step] = self.dict.get_category_values('Restart')
+         self.model.load_model(self.rnd-1)
 
-    def save_restart(self, restart_path):
-        return True 
+    # def save_restart(self):
+    #     params = [self.rnd, self.step]
+    #     jsonparams = json.dumps(params)
+    #     with open(self.outputFolder + 'restart.json', "w") as outfile:
+    #         outfile.write(jsonparams)
 
 
     def handle_input_data(self,input_file):
@@ -97,7 +99,6 @@ class Workflow():
 
 
     def explore(self):
-        # [self.sample_wells,self.sample_vertices,self.test_set] = self.dict.get_individual_keys(['a','a','b']  ['sample_wells','sample_vertices','test_set'])
         if self.sample_known_wells:
             print('Sampling Wells')
             self.recommender.sample_wells(self.rnd)
@@ -109,7 +110,6 @@ class Workflow():
 
     
     def exploit(self,model):
-        # [self.sample_wells,self.sample_vertices,self.test_set] = self.dict.get_individual_keys(['sample_wells','sample_vertices','test_set'])
         self.recommender.get_latest_pred(self.rnd)
         if self.sample_high_error == True:
             self.recommender.high_error(self.rnd)
@@ -142,7 +142,8 @@ class Workflow():
         training_func = 'model.train_rand_idnn'.format(self.config_path)
     
         params = hyperparameterSearch(rnd,N_hp_sets,commands,training_func, job_manager,account,walltime,mem,self.OutputFolder)
-        self.model.new_model(params)
+        # self.model.new_model(params)
+        self.model.load_model(rnd)
     
     def IDNN_transforms(self):
 
@@ -193,12 +194,16 @@ class Workflow():
             print('Explorative Data Recommendations, round ',self.rnd,'...')
             self.explore()
             if self.Data_Generation==True:
-                print('Data sampling, round ',self.rnd,'...')
-                self.sample_data(self.rnd)
-                self.step = 'Model_training'
+                self.step = 'Sampling'
             else:
                 self.step = 'Complete'
 
+        if self.step == 'Sampling':
+            print('Data sampling, round ',self.rnd,'...')
+            self.sample_data(self.rnd)
+            self.step = 'Model_training'
+
+        
 
         if self.step == 'Model_training':
             print('Train surrogate model, round ',self.rnd,'...')
@@ -209,7 +214,7 @@ class Workflow():
                 print('Exploitative Sampling, round ',self.rnd,'...')
                 self.exploit(self.model)
         
-        self.rnd += 1
+            self.rnd += 1
 
 
         #should only reach this stage if we are doing data_sampling

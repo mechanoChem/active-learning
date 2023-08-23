@@ -1,17 +1,17 @@
 {"Main": 
 {"model": "IDNN", 
-"data_generation": true,
+"data_generation": "True",
 "data_generation_source": "CASM", 
-"restart": false,
-"input_data": false, 
+"restart": "False",
+"input_data": "False", 
 "input_alias": "input",
 "output_alias": "output", 
-"iterations": 25, 
+"iterations": "25", 
 "outputfolder": "/Output/", 
-"seed": 1, 
-"input_dim":8,
-"derivative_dim":7,
-"output_dim":7,
+"seed": "1", 
+"input_dim":"8",
+"derivative_dim":"7",
+"output_dim":"7",
 "dir_path": null}, 
 
 "CASM": 
@@ -19,17 +19,17 @@
 "casm_version": "LCO", 
 "initial_mu": null, 
 "phi": null, 
-"n_jobs": 1}, 
+"n_jobs": "1"}, 
 
 "CASM_Surrogate": 
 {"casm_project_dir": "/Users/jamieholber/Software/active-learning/tests/LCO/CASMcode", 
 "casm_version": "LCO", 
 "initial_mu": null, 
 "phi":null, 
-"n_jobs": 1, 
-"hidden_layers": [174,174,174], 
-"input_shape": [1,12], 
-"dim": 7, 
+"n_jobs": "1", 
+"hidden_layers": "174,174,174", 
+"input_shape": "1,12", 
+"dim": "7", 
 "version": "LCO", 
 "activation": "tanh", 
 "transforms_directory": "/Users/jamieholber/Software/active-learning/tests/LCO"}, 
@@ -38,24 +38,24 @@
 {"generation_file": "''"}, 
 
 "Explore_Parameters":
- {"global_points": 15, 
- "sample_known_wells": true,
+ {"global_points": "15", 
+ "sample_known_wells": "True",
  "wells": null, 
- "wells_points": 15,
- "sample_known_vertices": false,
+ "wells_points": "15",
+ "sample_known_vertices": "False",
  "vertices": null, 
- "vertices_points": 15},
+ "vertices_points": "15"},
  
  "Exploit_Parameters": 
- {"hessian": true, 
- "hessian_repeat": [3,2], 
- "hessian_repeat_points": [20,10], 
- "high_error": true, 
- "high_error_repeat": [3,2], 
- "high_error_repeat_points": [20,10], 
- "find_wells": true,
- "wells_repeat": [3,2], 
- "wells_repeat_points": [20,10]}, 
+ {"hessian": "True", 
+ "hessian_repeat": "3,2", 
+ "hessian_repeat_points": "20,10", 
+ "high_error": "True", 
+ "high_error_repeat": "3,2", 
+ "high_error_repeat_points": "20,10", 
+ "find_wells": "True",
+ "wells_repeat": "3,2", 
+ "wells_repeat_points": "20,10"}, 
  
 
  "Sampling_Job_Manager": 
@@ -71,51 +71,52 @@
  "mem": "10G"}, 
  
  "IDNN": 
- {"layers": 2, 
- "neurons": 60, 
- "activation": ["tanh","tanh"], 
- "dropout": 0.06, 
+ {"layers": "2", 
+ "neurons": "60", 
+ "activation": "tanh,tanh", 
+ "dropout": "0.06", 
  "transforms_directory": "/Users/jamieholber/Software/active-learning/tests/LCO", 
 
- "loss": ["mse","mse",null], 
- "loss_weights": [0.01,0.1,0], 
+ "loss": "mse,mse,null", 
+ "loss_weights": "0.01,0.1,0", 
  "optimizer": "legacy.RMSprop", 
- "learning": 0.002, 
- "lr_decay": 0.95, 
+ "learning": "0.002", 
+ "lr_decay": "0.95", 
 
 
- "factor": 0.5, 
- "patience": 150, 
- "min_lr": 0.000001, 
+ "factor": "0.5", 
+ "patience": "150", 
+ "min_lr": "0.000001", 
  "earlystopping": "No", 
- "epochs": 100, 
- "batch_size": 500, 
+ "epochs": "100", 
+ "batch_size": "500", 
  "weightrecent": "No", 
- "validation_split": 0.25, 
- "idnn_hyperparameter": true}, 
+ "validation_split": "0.25", 
+ "idnn_hyperparameter": "True"}, 
  
 
 
  "IDNN_Hyperparameter": 
- {"n_sets": 2, 
- "layers": [2,3], 
+ {"n_sets": "2", 
+ "layers": null, 
  "neurons": null, 
- "activation": ["tanh","sigmoid"], 
+ "activation": null, 
  "dropout":null, 
 
  "optimizer": null, 
- "learning": [0.001,0.5], 
+ "learning": null, 
  "lr_decay": null, 
 
 
  "factor": null, 
  "patience": null, 
  "min_lr": null, 
- "epochs": [100,150], 
- "batch_size": [50,500]
+ "epochs": null, 
+ "batch_size": null
 }, 
  
  "Inference": {}, 
  
  "Restart": 
- {"restart_path": "'/'"}}
+ {"rnd": null,
+ "step":null}}

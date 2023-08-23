@@ -106,9 +106,9 @@ class IDNN_Model(Model):
         # readparams = open(self.outputFolder + 'training/model_{}/params'.format(rnd))
         with open(self.outputFolder + 'training/model_{}/params.json'.format(rnd)) as json_file:
             params = json.load(json_file)
-        # params = np.loadtxt(self.outputFolder + 'training/model_{}/params'.format(rnd))
+        # print('params:',params)
         [self.layers,self.neurons,self.activation_list,self.dropout,self.optimizer,self.learning,self.lr_decay,self.factor,self.patience,self.min_lr,self.epochs,self.batch_size] = params
-        print(params)
+        self.hidden_units = self.layers*[self.neurons]
         load_model = IDNN(self.dim,
                 self.hidden_units,
                 activation = self.activation_list,
@@ -123,10 +123,10 @@ class IDNN_Model(Model):
         #EDIT - load_weights
         load_model.load_weights(self.outputFolder+ 'training/model_{}/model'.format(rnd)).expect_partial()
         self.model = load_model
+        # print('model loaded',self.model)
 
     
     def new_model(self,params):
-        print(params)
         [self.layers,self.neurons,self.activation_list,self.dropout,self.optimizer,self.learning,self.lr_decay,self.factor,self.patience,self.min_lr,self.epochs,self.batch_size] = params
         # self.hidden_units = hidden_units
         # self.learning_rate = lr
@@ -188,7 +188,7 @@ class IDNN_Model(Model):
         else:
             optimizer = random.choice(optimizer)
 
-        print('optimizer',optimizer)
+        # print('optimizer',optimizer)
 
         rand_model = IDNN(self.dim,
                      hidden_units,
@@ -338,6 +338,7 @@ class IDNN_Model(Model):
             callbackslist.append(earlyStopping)
 
         print('Training...')
+        # print('model training',model)
         if self.WeightRecent == 'Yes':
             history =model.fit(input,
                     output,
