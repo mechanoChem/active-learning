@@ -55,8 +55,8 @@ def submitJob(command,specs={},is_dnsml=False):
             fout.write('#SBATCH --gpus=1\n')
         if 'array' in default:
             fout.write("#SBATCH --array={}                  # job array\n".format(default['array']))
-        fout.write('#SBATCH -e errors.%J       # error file name in which %J is replaced by the job ID \n')
-        fout.write('#SBATCH -o output.%J       # output file name in which %J is replaced by the job ID\n')
+        fout.write('#SBATCH -e sbatch/errors.%J       # error file name in which %J is replaced by the job ID \n')
+        fout.write('#SBATCH -o sbatch/output.%J       # output file name in which %J is replaced by the job ID\n')
         fout.write('#SBATCH -p {}                       # choose the queue (partition) to use\n\n'.format(default["queue"]))
         fout.write('#SBATCH --export=ALL\n\n')
 

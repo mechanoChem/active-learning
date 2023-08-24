@@ -243,12 +243,12 @@ class CASM_Sampling(Sampling):
                         '. $ANACONDA3HOME/etc/profile.d/conda.sh',
                         'conda activate /home/jholber/.conda/envs/casm',
                         'cwd=$PWD',
-                        'mv {}/data/data_sampled/job_$SLURM_ARRAY_TASK_ID {}'.format(self.OutputFolder,self.dir),
+                        'mv {}data/data_sampled/job_$SLURM_ARRAY_TASK_ID {}'.format(self.OutputFolder,self.dir),
                         'cd {}/job_$SLURM_ARRAY_TASK_ID'.format(self.dir),
                         #'$CASMPREFIX/bin/casm monte -s monte_settings_$SLURM_ARRAY_TASK_ID.json',
                         'casm monte -s monte_settings_$SLURM_ARRAY_TASK_ID.json',
                         'cd ../',
-                        'mv job_$SLURM_ARRAY_TASK_ID $cwd']
+                        'mv job_$SLURM_ARRAY_TASK_ID {}data/data_sampled/'.format(self.OutputFolder)]
         return command
 
     def submit_job(self,command):
