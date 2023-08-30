@@ -3,7 +3,8 @@ import sys, os
 import tensorflow as tf
 
 import sys
-# sys.path.append('../../active_learning/workflow/workfow')
+directory = os.path.abspath('../../../active-learning/')
+sys.path.insert(0,directory)
 # from workflow import Workflow
 from active_learning.workflow.workflow import Workflow
 
@@ -21,5 +22,5 @@ from active_learning.workflow.workflow import Workflow
 #   pass
 
 input_path = sys.argv[1]
-workflow = Workflow(input_path)
+workflow = Workflow(os.path.abspath(input_path))
 workflow.main_workflow()

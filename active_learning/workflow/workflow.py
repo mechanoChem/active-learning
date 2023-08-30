@@ -134,7 +134,7 @@ class Workflow():
         job_manager,account,walltime,mem, = self.dict.get_category_values('Hyperparameter_Job_Manager')
         # submit
         if self.Model_type=='IDNN':
-            commands = [f"sys.path.append('{os.path.dirname(__file__)}')",
+            commands = [f"sys.path.append('{sys.path[0]}')",
                     'from active_learning.model.idnn_model import IDNN_Model',
                     'from active_learning.workflow.dictionary import Dictionary',
                      f'dict = Dictionary("{os.path.abspath(self.input_path)}")',
