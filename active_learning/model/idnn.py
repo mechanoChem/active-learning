@@ -70,7 +70,7 @@ class IDNN(tf.keras.Model):
       if dropout:
         self.dnn_layers.append(Dropout(dropout))
     self.dnn_layers.append(Dense(1,use_bias=final_bias))
-        
+    
   @tf.function(autograph=False)
   def call(self, inputs):
 
@@ -116,6 +116,66 @@ class IDNN(tf.keras.Model):
     return [y,dy,ddy]  
 
 
+        
+#   @tf.function(autograph=False)
+#   def call(self, inputs):
+
+#     def DNN(y, T):
+#       if self.transforms:
+#         y = Transform(self.transforms)(y)
+#       y =tf.keras.layers.concatenate([y, T])
+#       for layer in self.dnn_layers:
+#         y = layer(y)
+#       return y
+
+#     if self.unique_inputs:
+#       x1 = inputs[0]
+#       x2 = inputs[1]
+#       x3 = inputs[2]
+#       x4 = inputs[3]  
+#       y = DNN(x1, x4)
+      
+#       with tf.autodiff.ForwardAccumulator(primals=x2, tangents=tf.ones_like(x2)) as acc:
+#         y2 = DNN(x2, x4)
+#       dy = acc.jvp(y2)
+      
+#       with tf.autodiff.ForwardAccumulator(primals=x3, tangents=tf.constant(1.0, shape=x3.shape)) as acc:
+#           y3 = DNN(x3, x4)
+
+#       dy3 = acc.jvp(y3)
+
+#       with tf.autodiff.ForwardAccumulator(primals=x3, tangents=tf.constant(1.0, shape=x3.shape)) as acc2:
+#           ddy = acc2.jvp(dy3)
+      
+#     else:
+#       x1 = inputs[0]
+#       x4 = inputs[1]
+# # Define the function for the forward pass of your DNN
+#       def forward_pass(x1, x4):
+#           y = DNN(x1, x4)
+#           return y
+
+#       # Compute dy and ddy using tf.autodiff.ForwardAccumulator
+#       with tf.autodiff.ForwardAccumulator(primals=x1, tangents=tf.constant(1.0, shape=x1.shape)) as acc1:
+#           with tf.autodiff.ForwardAccumulator(primals=x1, tangents=tf.constant(1.0, shape=x1.shape)) as acc2:
+#               y = forward_pass(x1, x4)
+
+#           dy = acc1.jvp(y)
+
+#       ddy = acc2.jvp(dy)
+
+#     return [y,dy,ddy]  
+
+
 # get_config function needed here?
 #Mostafa 
 # WARNING:tensorflow:Model's `__init__()` arguments contain non-serializable objects. Please implement a `get_config()` method in the subclassed Model for proper saving and loading. Defaulting to empty config.
+
+# def get_config(self):
+#     config = super().get_config()
+#     config.update({
+#         'transforms': self.transforms,
+#         'unique_inputs': self.unique_inputs,
+#         'dnn_layers': [layer.get_config() for layer in self.dnn_layers],
+#     })
+#     return config

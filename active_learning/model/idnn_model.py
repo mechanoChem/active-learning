@@ -121,27 +121,31 @@ class IDNN_Model(Model):
                         loss_weights=self.loss_weights,
                         optimizer=eval(self.opt)(learning_rate=self.learning))
         #EDIT - load_weights
+        # print('About to load weights')
+        
         load_model.load_weights(self.outputFolder+ 'training/model_{}/model'.format(rnd)).expect_partial()
         self.model = load_model
+        
+        # print('Weights loaded')
         # print('model loaded',self.model)
 
     
-    def new_model(self,params):
-        [self.layers,self.neurons,self.activation_list,self.dropout,self.optimizer,self.learning,self.lr_decay,self.factor,self.patience,self.min_lr,self.epochs,self.batch_size] = params
-        # self.hidden_units = hidden_units
-        # self.learning_rate = lr
-        self.hidden_units = self.layers*[self.neurons]
-        self.model = IDNN(self.dim,
-                self.hidden_units,
-                activation = self.activation_list,
-                transforms=self.IDNN_transforms(),
-                dropout=self.dropout,
-                unique_inputs=True,
-                final_bias=True)
-        self.opt = 'keras.optimizers.' + self.optimizer 
-        self.model.compile(loss=self.lossterms,
-                        loss_weights=self.loss_weights,
-                        optimizer=eval(self.opt)(learning_rate=self.learning))
+    # def new_model(self,params):
+    #     [self.layers,self.neurons,self.activation_list,self.dropout,self.optimizer,self.learning,self.lr_decay,self.factor,self.patience,self.min_lr,self.epochs,self.batch_size] = params
+    #     # self.hidden_units = hidden_units
+    #     # self.learning_rate = lr
+    #     self.hidden_units = self.layers*[self.neurons]
+    #     self.model = IDNN(self.dim,
+    #             self.hidden_units,
+    #             activation = self.activation_list,
+    #             transforms=self.IDNN_transforms(),
+    #             dropout=self.dropout,
+    #             unique_inputs=True,
+    #             final_bias=True)
+    #     self.opt = 'keras.optimizers.' + self.optimizer 
+    #     self.model.compile(loss=self.lossterms,
+    #                     loss_weights=self.loss_weights,
+    #                     optimizer=eval(self.opt)(learning_rate=self.learning))
 
     def parameter_int(self,keys):
         list = []

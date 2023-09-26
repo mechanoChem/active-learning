@@ -9,6 +9,7 @@ from operator import itemgetter
 
 from importlib import import_module
 from time import sleep
+import sys
 
 def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, walltime, memory):
     """ A function to submit the job scripts for a each set of hyperparameters
@@ -23,6 +24,8 @@ def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, wall
     :type rnd: int
     
     """
+
+
     if job_manager=='PC':
         from subprocess import call
 
@@ -39,6 +42,7 @@ def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, wall
             script.append('python << END')
         script.append('import sys')
         script.append('import numpy as np')
+        # script.append('sys.path.append({})'.format(sys.path[0]))
         script.append('rnd = {}'.format(rnd))
         script.append('i = {}'.format(i))
         for command in commands:

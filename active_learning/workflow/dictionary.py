@@ -9,14 +9,12 @@ class Dictionary():
 
     def __init__(self, input_file):
 
-        # print(sys.path)
-
         with open('../../active_learning/workflow/sample.json') as json_file:
             self.dict = json.load(json_file)
         # print(self.dict)
         self.construct_dict(input_file)
-        self.maintain_input()
         self.dict['Main']['dir_path'] = os.path.dirname(input_file)
+        self.maintain_input()
 
         # try:
         #     self.maintain_input()
@@ -93,6 +91,25 @@ class Dictionary():
                  self.dict[inputs[i][0]][inputs[i][1]] = False
 
 
+    def verifypath(self,inputs):
+        # print('directory path',self.dict['Main']['dir_path'] )
+        # print(inputs)
+        for i in range(np.shape(inputs)[0]):
+            # print('verifypath')
+            # print('original path',self.dict[inputs[i][0]][inputs[i][1]])
+            # print("ispath", os.path.isabs(self.dict[inputs[i][0]][inputs[i][1]]))
+            if not os.path.isabs(self.dict[inputs[i][0]][inputs[i][1]]):
+                pathlocation = os.path.join( self.dict['Main']['dir_path'], self.dict[inputs[i][0]][inputs[i][1]])
+                assert(os.path.exists(pathlocation))
+                # print(pathlocation)
+                self.dict[inputs[i][0]][inputs[i][1]] = pathlocation
+            # print("is new path", os.path.isabs(self.dict[inputs[i][0]][inputs[i][1]]))
+            # assert(0==1)
+
+
+
+
+
     
     def maintain_input(self):
         int_inputs = []
@@ -101,6 +118,7 @@ class Dictionary():
         float_array_inputs = []
         str_array_inputs = []
         true_false = []
+        paths = []
         if self.dict['Main']['model'] == 'IDNN':
             int_inputs +=[  ['IDNN','layers'], ['IDNN','neurons'], ['IDNN','epochs'],['IDNN','batch_size'] ]
             str_array_inputs += [['IDNN','activation'],['IDNN','loss']]
@@ -108,6 +126,7 @@ class Dictionary():
             assert('optimizer' in self.dict['IDNN'])
             true_false += [['IDNN','idnn_hyperparameter']]
             float_array_inputs += [['IDNN','loss_weights']]
+            paths += [['IDNN','transforms_directory']]
             if self.dict['IDNN']['idnn_hyperparameter'] == 'True':
                 int_inputs += [['IDNN_Hyperparameter','n_sets']]
                 str_array_inputs += [['IDNN_Hyperparameter','activation'],['IDNN_Hyperparameter','optimizer']]
@@ -118,15 +137,15 @@ class Dictionary():
         true_false += [['Main','data_generation']]
         if self.dict['Main']['data_generation'] == 'True':
             if self.dict['Main']['data_generation_source'] == 'CASM':
-                assert(os.path.exists(self.dict['CASM']['casm_project_dir']))
+                paths+=[['CASM','casm_project_dir']]
+                # assert(os.path.exists(self.dict['CASM']['casm_project_dir']))
                 assert('initial_mu' in self.dict['CASM'])
                 if self.dict["CASM"]["casm_version"] == '0.3.X':
                     self.dict["CASM"]["casm_version"] = 'LCO'
                 float_array_inputs += [['CASM','phi']]
                 int_inputs += [['CASM','n_jobs']]
             if self.dict['Main']['data_generation_source'] == 'CASM_Surrogate':
-                assert(os.path.exists(self.dict['CASM_Surrogate']['casm_project_dir']))
-                assert(os.path.exists(self.dict['CASM_Surrogate']['transforms_directory']))
+                paths += ([['CASM_Surrogate','casm_project_dir'],['CASM_Surrogate','transforms_directory']])
                 assert('initial_mu' in self.dict['CASM_Surrogate'])
                 assert('activation' in self.dict['CASM_Surrogate'])
                 if self.dict['CASM_Surrogate']["casm_version"] == '0.3.X':
@@ -161,10 +180,10 @@ class Dictionary():
 
         if self.dict['Explore_Parameters']['sample_known_wells'] == 'True':
             int_inputs += [['Explore_Parameters','wells_points']]
-            assert(os.path.exists(self.dict['Explore_Parameters']['wells']))
+            paths += ([['Explore_Parameters','wells']])
         if self.dict['Explore_Parameters']['sample_known_vertices'] == 'True':
             int_inputs += [['Explore_Parameters','vertices_points']]
-            assert(os.path.exists(self.dict['Explore_Parameters']['vertices']))
+            paths += ([['Explore_Parameters','vertices']])
 
 
         # str_array_inputs += [['Training','loss']]
@@ -185,6 +204,7 @@ class Dictionary():
         self.set_as_float_array(float_array_inputs)
         self.set_as_str_array(str_array_inputs)
         self.set_as_true_false(true_false)
+        self.verifypath(paths)
 
 
 
@@ -208,6 +228,7 @@ class Dictionary():
                         self.dict['Sampling']['continuous_dependent'][domain]['x0'] = self.dict[domain]['x0']
                     elif space_filling_method == 'sobol':
                         self.dict['Sampling']['continuous_dependent'][domain]['x_bounds'] = self.dict[domain]['x_bounds']
+                    self.verifypath([[domain,'filepath']])
                     self.dict['Sampling']['continuous_dependent'][domain]['filepath'] = self.dict[domain]['filepath']
                 else: 
                     self.dict['Sampling']['continuous_dependent'][domain]['values'] = [input]

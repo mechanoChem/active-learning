@@ -4,15 +4,20 @@ from tensorflow import keras
 import sys, os
 
 import numpy as np
-from active_learning.model.idnn_old import IDNN
-from active_learning.model.transform_layer import Transform
-
 import json
+from pathlib import Path
 
 
 print('recreate model...')
-#path = os.path.dirname(os.getcwd())
-#sys.path.append(path)
+# path = os.path.dirname(os.getcwd())
+# print('path1',path)
+dirpath = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+# print(type(Path(dirpath)))
+# print(dirpath.resolve().parents[1])
+# pathtoadd = dirpath.resolve().parents[1]
+# print(dirpath)
+
+sys.path.append(dirpath)
 #print(path)
 
 
@@ -22,7 +27,15 @@ dim = int(sys.argv[4])
 casm_version = sys.argv[5]
 activationinput =  sys.argv[6]
 path = sys.argv[7]
+# print('path',path)
 sys.path.append(path)
+# directory = os.path.abspath('../../active-learning/')
+# sys.path.insert(0,directory)
+# print(sys.path)
+
+
+from active_learning.model.idnn_old import IDNN
+from active_learning.model.transform_layer import Transform
 from TransformsModule import transforms
 
 

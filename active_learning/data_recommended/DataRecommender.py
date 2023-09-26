@@ -16,7 +16,7 @@ import tensorflow.keras.backend as K
 from tensorflow.keras.layers import Lambda
 from numpy import linalg as LA
 from active_learning.data_recommended.helperfunctions import convex, convexMult
-
+import pandas as pd
 
 class DataRecommender():
 
@@ -190,7 +190,9 @@ class DataRecommender():
         outputorder = []
 
         for domain in self.sampling_dict['continuous_dependent'] :
-            outputorder.append(self.sampling_dict['continuous_dependent'][domain]['values'])
+            # print(self.sampling_dict['continuous_dependent'][domain])
+            # [value] = self.sampling_dict['continuous_dependent'][domain]['values']
+            outputorder += self.sampling_dict['continuous_dependent'][domain]['dim']*self.sampling_dict['continuous_dependent'][domain]['values']
             # print(self.sampling_dict['continuous_dependent'][domain])
 
             test_set = self.sampling_dict['continuous_dependent'][domain]['type']
@@ -228,7 +230,7 @@ class DataRecommender():
             output = np.hstack((output,eta[0:self.N_global_pts,:]))
 
         for domain in self.sampling_dict['continuous_independent']:
-            outputorder.append([domain])
+            outputorder += self.sampling_dict['continuous_independent'][domain]['dim']*self.sampling_dict['continuous_independent'][domain]['values']
             range = self.sampling_dict['continuous_independent'][domain]
             # dim = self.sampling_dict['continuous_independent']
             random_continous = np.random.uniform(low=range[0], high=range[1], size=(self.N_global_pts,1))
@@ -236,15 +238,26 @@ class DataRecommender():
 
 
         for domain in self.sampling_dict['discrete']:
-            outputorder.append([domain])
+            # print(self.sampling_dict['discrete'][domain])
+            # outputorder += self.sampling_dict['discrete'][domain]['dim']*self.sampling_dict['discrete'][domain]['values']
             range = self.sampling_dict['discrete'][domain]
             random_discrete = np.random.choice(range,self.N_global_pts)
             random_discrete = np.reshape(random_discrete,(self.N_global_pts,1))
             output = np.hstack((output,random_discrete))
         
     #EDIT - reorder these to match input_alias 
+
         
         output = output[:,1:]
+        # print(outputorder)
+
+        # df = pd.DataFrame(output,index=outputorder)
+
+        # print(df)
+
+        # new_index = df.reindex(self.input_alias)
+
+        # print(new_index)
         self.write(rnd, test_set, output)       
 
 
@@ -285,7 +298,7 @@ class DataRecommender():
         for column in input:
 
             col = column[I]
-            #EDIT should be 
+            #EDIT should be generally adaptable 
             input_a = np.repeat(col[:self.hessian_repeat_points[0]],self.hessian_repeat[0],axis=0)
             input_b = np.repeat(col[self.hessian_repeat_points[0]:self.hessian_repeat_points[0]+self.hessian_repeat_points[1]],self.hessian_repeat[1],axis=0)
             input_local_col = np.vstack((input_a,input_b))
