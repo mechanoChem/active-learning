@@ -5,7 +5,7 @@ import os, shutil, copy
 import fileinput as fin
 from time import sleep
 from shutil import copyfile
-from active_learning.data_collector.sampling import Sampling
+from active_learning.data_collector.Sampling import Sampling
 import pandas as pd
 
 class CASM_Sampling(Sampling):    
