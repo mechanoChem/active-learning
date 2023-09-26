@@ -88,7 +88,7 @@ class DataRecommender():
         
         return input,output
 
-    def find_wells(self,x,dim=4,bounds=[0,0.25],rereference=True):
+    def find_wells(self,rnd,dim=4,bounds=[0,0.25],rereference=True):
 
     # Find "wells" (regions of convexity, with low gradient norm)
 
@@ -97,30 +97,49 @@ class DataRecommender():
         output = self.output.copy()
         pred = self.output_pred.copy()
 
-        mu_test = 0.01*pred[1]
-        if rereference:
-            eta_test = np.array([bounds[0]*np.ones(dim),
-                                bounds[1]*np.ones(dim)])
-            if self.model.unique_inputs:
-                y = 0.01*self.model.predict([eta_test,eta_test,eta_test,T])[0]
-            else:
-                y = 0.01*self.model.predict(eta_test)[0]
-            g0 = y[0,0]
-            g1 = y[1,0]
-            mu_test[:,0] = mu_test[:,0] - 1./bounds[1]*(g1 - g0)
-        gradNorm = np.sqrt(np.sum(mu_test**2,axis=-1))
+        mu = pred[1]
+        # if rereference:
+        #     eta_test = np.array([bounds[0]*np.ones(dim),
+        #                         bounds[1]*np.ones(dim)])
+        #     if self.model.unique_inputs:
+        #         y = 0.01*self.model.predict([eta_test,eta_test,eta_test,T])[0]
+        #     else:
+        #         y = 0.01*self.model.predict(eta_test)[0]
+        #     g0 = y[0,0]
+        #     g1 = y[1,0]
+        #     mu_test[:,0] = mu_test[:,0] - 1./bounds[1]*(g1 - g0)
+        
+        gradNorm = np.sqrt(np.sum(mu**2,axis=-1))
 
         H = pred[2] # get the list of Hessian matrices
         ind2 = convexMult(H) # indices of points with local convexity
-        eta = x[ind2]
+        # eta = x[ind2]
         gradNorm = gradNorm[ind2]
 
-        ind3 = np.argsort(gradNorm)
-        #EDIT
+        I = np.argsort(gradNorm)
         
-        # Return eta values with local convexity, sorted by gradient norm (low to high)
+        input_local = []
+        
+        for column in input:
 
-        return eta[ind3],T
+            col = column[I]
+            for i in range(np.shape(self.wells_repeat)[0]):
+                if i ==0:
+                    input_local_col = np.repeat(col[:self.wells_repeat_points[i]],self.wells_repeat[i],axis=0)
+                else:
+                    new_values = np.repeat(col[self.wells_repeat_points[i-1]:self.wells_repeat_points[i-1]+self.wells_repeat_points[i]],self.wells_repeat[i],axis=0)
+                    input_local_col = np.vstack((input_local_col,new_values))
+            input_local_col += (np.random.rand(*input_local_col.shape)-0.5) #perturb points randomly
+            input_local.append(input_local_col)
+        
+        input_local = self.relevent_columns(input_local)
+        if np.shape(input_local)[0] != 0:
+            self.write(rnd, 'find_wells', input_local)
+        else:
+            print('No data points in near wells')
+
+
+        return input_local
 
 
 
@@ -298,11 +317,13 @@ class DataRecommender():
         for column in input:
 
             col = column[I]
-            #EDIT should be generally adaptable 
-            input_a = np.repeat(col[:self.hessian_repeat_points[0]],self.hessian_repeat[0],axis=0)
-            input_b = np.repeat(col[self.hessian_repeat_points[0]:self.hessian_repeat_points[0]+self.hessian_repeat_points[1]],self.hessian_repeat[1],axis=0)
-            input_local_col = np.vstack((input_a,input_b))
-            input_local_col = 0.02*2.*(np.random.rand(*input_local_col.shape)-0.5) #perturb points randomly
+            for i in range(np.shape(self.hessian_repeat)):
+                if i ==0:
+                    input_local_col = np.repeat(col[:self.hessian_repeat_points[i]],self.hessian_repeat[i],axis=0)
+                else:
+                    new_values = np.repeat(col[self.hessian_repeat_points[i-1]:self.hessian_repeat_points[i-1]+self.hessian_repeat_points[i]],self.hessian_repeat[i],axis=0)
+                    input_local_col = np.vstack((input_local_col,new_values))
+            input_local_col += 0.02*2.*(np.random.rand(*input_local_col.shape)-0.5) #perturb points randomly
             input_local.append(input_local_col)
         input_local = self.relevent_columns(input_local)
 
@@ -345,15 +366,14 @@ class DataRecommender():
             
             for column in input:
                 higherror =  column[np.argsort(error)[::-1],:]
-            
-            
-            # randomly perturbed samples
-                input_a = np.repeat(higherror[:self.high_error_repeat_points[0],:],self.high_error_repeat[0],axis=0)
-                input_b = np.repeat(higherror[self.high_error_repeat_points[0]:self.high_error_repeat_points[0]+self.high_error_repeat_points[1],:],self.high_error_repeat[1],axis=0)
                 
-
-                input_local_col = np.vstack((input_a,input_b))
-                input_local_col = (np.random.rand(*input_local_col.shape)-0.5) #perturb points randomly
+                for i in range(np.shape(self.high_error_repeat)):
+                    if i ==0:
+                        input_local_col = np.repeat(higherror[:self.high_error_repeat_points[i],:],self.high_error_repeat[i],axis=0)
+                    else:
+                        new_values = np.repeat(higherror[self.high_error_repeat_points[i-1]:self.high_error_repeat_points[i-1]+self.high_error_repeat_points[i],:],self.high_error_repeat[i],axis=0)
+                        input_local_col = np.vstack((input_local_col,new_values))
+                input_local_col += (np.random.rand(*input_local_col.shape)-0.5) #perturb points randomly
                 input_derivative.append(input_local_col)
             
             if input_local == []:

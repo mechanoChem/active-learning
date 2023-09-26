@@ -120,8 +120,6 @@ class IDNN_Model(Model):
         load_model.compile(loss=self.lossterms,
                         loss_weights=self.loss_weights,
                         optimizer=eval(self.opt)(learning_rate=self.learning))
-        #EDIT - load_weights
-        # print('About to load weights')
         
         load_model.load_weights(self.outputFolder+ 'training/model_{}/model'.format(rnd)).expect_partial()
         self.model = load_model
@@ -262,7 +260,6 @@ class IDNN_Model(Model):
     
         params = [layers,neurons,activation_list,dropout,optimizer,learning,lr_decay,factor,patience,min_lr,epochs,batch_size]
         os.makedirs(self.outputFolder+ 'training/model_{}_{}'.format(rnd,set_i))
-        #EDIT - save_weights
         rand_model.save_weights(self.outputFolder+ 'training/model_{}_{}/model'.format(rnd,set_i))
         jsonparams = json.dumps(params)
         with open(self.outputFolder + 'training/model_{}_{}/params.json'.format(rnd,set_i), "w") as outfile:
@@ -278,7 +275,6 @@ class IDNN_Model(Model):
     
     def save_model(self,rnd):
         os.makedirs(self.outputFolder+ 'training/model_{}'.format(rnd))
-         #EDIT - save_weights
         self.model.save_weights(self.outputFolder+ 'training/model_{}/model'.format(rnd))
 
 
