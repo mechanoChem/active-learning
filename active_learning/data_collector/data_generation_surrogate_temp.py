@@ -106,10 +106,10 @@ T = np.array(T)
 print('predicting...')
 pred = idnn.predict(eta)
 mu = pred[1]
-for i in range(len(T)):
-    temp = float(T[i])
-    for j in range(7):
-        mu[i,j] = mu[i,j] + (2.772*pow(10,-10)*pow(temp,3) - 1.551*pow(10,-7)*pow(temp,2) + temp*2.67*pow(10,-5) ) -  (2.772*pow(10,-10)*pow(300,3) - 1.551*pow(10,-7)*pow(300,2) + 2.67*pow(10,-5)*(300)) - 0.00048443 #adjust temp
+# for i in range(len(T)):
+#     temp = float(T[i])
+#     for j in range(7):
+#         mu[i,j] = mu[i,j] + (2.772*pow(10,-10)*pow(temp,3) - 1.551*pow(10,-7)*pow(temp,2) + temp*2.67*pow(10,-5) ) -  (2.772*pow(10,-10)*pow(300,3) - 1.551*pow(10,-7)*pow(300,2) + 2.67*pow(10,-5)*(300)) - 0.00048443 #adjust temp
 #mu = mu +  (2.772*pow(10,-10)*pow(T,3) - 1.551*pow(10,-7)*pow(T,2) + T*2.67*pow(10,-5) ) -  (2.772*pow(10,-10)*pow(300,3) - 1.551*pow(10,-7)*pow(300,2) + 2.67*pow(10,-5)*(300)) #adjust temp 
 kappa = eta + 0.5*mu/phi # Back out what kappa would have been
 

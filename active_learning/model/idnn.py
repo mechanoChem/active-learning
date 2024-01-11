@@ -87,6 +87,7 @@ class IDNN(tf.keras.Model):
       x2 = inputs[1]
       x3 = inputs[2]
       x4 = inputs[3]  
+      # print('x1',x1)
       y = DNN(x1, x4)
       
       with tf.GradientTape() as g:

@@ -129,7 +129,7 @@ class Dictionary():
             paths += [['IDNN','transforms_directory']]
             if self.dict['IDNN']['idnn_hyperparameter'] == 'True':
                 int_inputs += [['IDNN_Hyperparameter','n_sets']]
-                str_array_inputs += [['IDNN_Hyperparameter','activation'],['IDNN_Hyperparameter','optimizer']]
+                self.set_as_str_array([['IDNN_Hyperparameter','activation'],['IDNN_Hyperparameter','optimizer']],nullallowed=True)
                 self.set_as_int_array([['IDNN_Hyperparameter','layers'],['IDNN_Hyperparameter','neurons'], ['IDNN_Hyperparameter','epochs'],['IDNN_Hyperparameter','batch_size']],nullallowed=True)
                 self.set_as_float_array([['IDNN_Hyperparameter','dropout'],['IDNN_Hyperparameter','learning'], ['IDNN_Hyperparameter','lr_decay'],['IDNN_Hyperparameter','factor'],['IDNN_Hyperparameter','patience'],['IDNN_Hyperparameter','min_lr']],nullallowed=True)
       
@@ -163,10 +163,10 @@ class Dictionary():
             
 
 
-        true_false += [['Main','restart'],['Main','input_data'],['Exploit_Parameters','hessian'],
+        true_false += [['Main','restart'],['Main','input_data'],
                        ['Exploit_Parameters','high_error'],['Explore_Parameters','sample_known_wells'],
                        ['Explore_Parameters','sample_known_vertices'],['Exploit_Parameters','hessian'],
-                       ['Exploit_Parameters','high_error'],['Exploit_Parameters','find_wells']]
+                       ['Exploit_Parameters','find_wells']]
         str_array_inputs += [['Main','input_alias'],['Main','output_alias']]
         int_inputs += [['Main','iterations'],['Main','seed'],['Explore_Parameters','global_points']]
 

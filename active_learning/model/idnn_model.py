@@ -22,14 +22,9 @@ class IDNN_Model(Model):
          self.factor, self.patience,self.min_lr,self.EarlyStopping,self.epochs,
          self.batch_size,self.WeightRecent,self.validation_split,
          self.hyperparameter] = self.dict.get_category_values('IDNN')
-        # [self.outputFolder,self.input_alias, self.transform_path,
-        #  self.output_alias,self.config_path, self.dim] = self.dict.get_individual_keys(['outputfolder',
-        # 'input_alias','transforms_directory','output_alias','dir_path','Input_dim'])
+
 
         [self.input_alias,self.output_alias,self.config_path,self.outputFolder] = self.dict.get_individual_keys('Main',['input_alias','output_alias','dir_path','outputfolder'])
-        
-        # [self.WeightRecent,self.LR_decay,self.Min_lr,self.EarlyStopping,
-        #   self.factor, self.Patience, self.lossterms, self.loss_weights] = self.dict.get_category_values('Training')
         self.dim = np.size(self.input_alias)
         self.hidden_units = self.layers*[self.neurons]
         self.activation_list = []
@@ -54,52 +49,89 @@ class IDNN_Model(Model):
         # self.learning_rate = np.power(10,(np.log10(self.LR_range[1]) - np.log10(self.LR_range[0]))*np.random.rand(1)[0] + np.log10(0.0001),dtype=np.float32)
     
     def predict(self,data):
-        return self.model.predict(data)
+        data = self.input_columns_to_training(data)
+        data= self.scale_loaded_data(data)
+        output = self.model.predict(data)
+        return self.scale_output_back(output)
     
-    def loadOutput(self,rnd, dim, outputfolder, singleRnd=False):
-        if singleRnd:
-            return np.load(outputfolder + 'data/data_sampled/results{}.npy'.format(rnd),allow_pickle=True)
+    def adjust_scaling(self,input,value):
+        #input non derivative - temperature
+        #input regular - eta's
+        #output - free/mu
+
+         [adjust]= self.dict.get_individual_keys(value,['adjust'])
+         input = (input+adjust[0])*adjust[1]
+         return input
+
+    def array_to_column(self, data):
+        #self.input_alias x,eta,T
+        column_list_input = []
+        column_list_output = []
+        position = 0
+        for input in self.input_alias:
+            [dim] =self.dict.get_individual_keys(input,['dimensions'])
+            column_list_input.append(data[:,position:dim+position])
+            position+=dim
+        for output in self.output_alias:
+            [dim] =self.dict.get_individual_keys(output,['dimensions'])
+            column_list_output.append(data[:,position:dim+position])
+            position+=dim
+
+        return column_list_input,column_list_output
+            
+        #dim should be [1,6,1]
+
+        # model_order = self.dict.get_individual_keys('Ordering',['model_order'])
+
+
+    def scale_loaded_data(self,input, output=None):
+        #Switch to columns
+        # input, output = self.array_to_column(input,output) 
+
+        for i in range(np.size(self.input_alias)):
+            _,_,derivative_dim,dimension,adjust = self.dict.get_category_values(self.input_alias[i])
+            input[:][i] = (input[:][i]+adjust[0])*adjust[1]  
+        if output == None:
+            return input
         else:
-            return np.load(outputfolder + 'data/data_sampled/allResults{}.npy'.format(rnd),allow_pickle=True)
+            for i in range(np.size(self.output_alias)):
+                derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[i])
+                output[:][i] = (output[:][i]+adjust[0])*adjust[1]
+            return input,output
+
+    def scale_output_back(self,output):
+        for i in range(np.size(self.output_alias)):
+            derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[i])
+            output[:][i] = (output[:][i]/adjust[1])-adjust[0]
+        return output
+
     
 
     def load_data(self,rnd,singleRnd=True):
         if singleRnd:
-            input, input_non_derivative, output =  np.load(self.outputFolder + 'data/data_sampled/results{}.npy'.format(rnd),allow_pickle=True)
+            data =  np.load(self.outputFolder + 'data/data_sampled/results{}.npy'.format(rnd),allow_pickle=True)
         else:
-            input, input_non_derivative, output =  np.load(self.outputFolder + 'data/data_sampled/allResults{}.npy'.format(rnd),allow_pickle=True)
+            data =  np.load(self.outputFolder + 'data/data_sampled/allResults{}.npy'.format(rnd),allow_pickle=True)
         
-        j=0
-        for i in range(np.size(self.input_alias)):
-            _,_,derivative_dim,dimension,adjust = self.dict.get_category_values(self.input_alias[i])
-            if derivative_dim:
-                input[:,:,i] = (input[:,:,i]+adjust[0])*adjust[1]
-            else:
-                input_non_derivative[:,j] = (input_non_derivative[:,j]+adjust[0])*adjust[1]
-                j+=1
+        input, output = self.array_to_column(data)
 
-        input = [input[0,:,:],input[1,:,:],input[2,:,:], input_non_derivative[0,:,:]]
-
-        for i in range(np.size(self.output_alias)):
-            derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[i])
-            output[:][derivative] = (output[:][derivative]+adjust[0])*adjust[1]
-        
-        return input,output
+        return self.scale_loaded_data(input, output)
         
     def loss(self,rnd):
         input,output = self.load_data(rnd,singleRnd=True) #Params[0] returns input, Params[1] returns output
-        input2 = []
-        for i in input:
-            input2.append(i.T)
-
-        input = input2
-
-        output2 = []
-        for i in output:
-            output2.append(i.T)
-
-        output = output2
         return self.model.evaluate(input,output)
+        # input2 = []
+        # for i in input:
+        #     input2.append(i.T)
+
+        # input = input2
+
+        # output2 = []
+        # for i in output:
+        #     output2.append(i.T)
+
+        # output = output2
+        
 
 
     def load_model(self,rnd):
@@ -123,27 +155,6 @@ class IDNN_Model(Model):
         
         load_model.load_weights(self.outputFolder+ 'training/model_{}/model'.format(rnd)).expect_partial()
         self.model = load_model
-        
-        # print('Weights loaded')
-        # print('model loaded',self.model)
-
-    
-    # def new_model(self,params):
-    #     [self.layers,self.neurons,self.activation_list,self.dropout,self.optimizer,self.learning,self.lr_decay,self.factor,self.patience,self.min_lr,self.epochs,self.batch_size] = params
-    #     # self.hidden_units = hidden_units
-    #     # self.learning_rate = lr
-    #     self.hidden_units = self.layers*[self.neurons]
-    #     self.model = IDNN(self.dim,
-    #             self.hidden_units,
-    #             activation = self.activation_list,
-    #             transforms=self.IDNN_transforms(),
-    #             dropout=self.dropout,
-    #             unique_inputs=True,
-    #             final_bias=True)
-    #     self.opt = 'keras.optimizers.' + self.optimizer 
-    #     self.model.compile(loss=self.lossterms,
-    #                     loss_weights=self.loss_weights,
-    #                     optimizer=eval(self.opt)(learning_rate=self.learning))
 
     def parameter_int(self,keys):
         list = []
@@ -169,8 +180,6 @@ class IDNN_Model(Model):
             
 
     def train_rand_idnn(self,rnd,set_i):
-        # rnd=0
-        # [layers_range,neurons_range] = self.dict.get_individual_keys(['layers_range','neurons_range'])
         [layers,neurons,epochs,batch_size] = self.parameter_int(['layers','neurons','epochs','batch_size'])
         [dropout,learning,lr_decay,factor,patience,min_lr] = self.parameter_float(['dropout','learning','lr_decay','factor','patience','min_lr'])
 
@@ -204,59 +213,61 @@ class IDNN_Model(Model):
                         loss_weights=self.loss_weights,
                         optimizer=eval(opt)(learning_rate=learning*lr_decay))
 
-        # model,valid_loss = self.surrogate_training(rnd,rand_model,input,output,set_i,learning)
+        rand_model,valid_loss = self.surrogate_training(rnd,rand_model,input,output,set_i,learning)
 
 
-        inds = np.arange(input[0].shape[1])
-        np.random.shuffle(inds)
-        input2 = []
-        for i in input:
-            input2.append(i[:,inds].T)
+        # inds = np.arange(input[0].shape[1])
+        # np.random.shuffle(inds)
+        # input2 = []
+        # for i in input:
+        #     input2.append(i[:,inds].T)
 
-        input = input2
+        # input = input2
 
-        output2 = []
-        for i in output:
-            output2.append(i[:,inds].T)
+        # output2 = []
+        # for i in output:
+        #     output2.append(i[:,inds].T)
 
-        output = output2
+        # output = output2
 
-        if self.WeightRecent == 'Yes':
-            # weight the most recent high error points as high as all the other points
-            n_points = len(input)
-            sample_weight = np.ones(n_points)
-            if rnd > 0:
-                sample_weight[-1000:] = max(1,(n_points-1000)/(2*1000))
-            sample_weight = sample_weight[inds]
+        # if self.WeightRecent == 'Yes':
+        #     # weight the most recent high error points as high as all the other points
+        #     n_points = len(input)
+        #     sample_weight = np.ones(n_points)
+        #     if rnd > 0:
+        #         sample_weight[-1000:] = max(1,(n_points-1000)/(2*1000))
+        #     sample_weight = sample_weight[inds]
 
 
-        # train
-        lr_decay = self.lr_decay**rnd
-        csv_logger = CSVLogger(self.outputFolder+'training/training_{}_{}.txt'.format(rnd,set_i),append=True)
+        # # train
+        # lr_decay = self.lr_decay**rnd
+        # csv_logger = CSVLogger(self.outputFolder+'training/training_{}_{}.txt'.format(rnd,set_i),append=True)
 
-        reduceOnPlateau = ReduceLROnPlateau(factor=factor,patience=patience,min_lr=min_lr)
-        callbackslist = [csv_logger, reduceOnPlateau]
-        if EarlyStopping == 'Yes':
-            earlyStopping = EarlyStopping(patience=patience)
-            callbackslist.append(earlyStopping)
+        # reduceOnPlateau = ReduceLROnPlateau(factor=factor,patience=patience,min_lr=min_lr)
+        # callbackslist = [csv_logger, reduceOnPlateau]
+        # if EarlyStopping == 'Yes':
+        #     earlyStopping = EarlyStopping(patience=patience)
+        #     callbackslist.append(earlyStopping)
 
-        print('Training...')
-        if self.WeightRecent == 'Yes':
-            history =rand_model.fit(input,
-                    output,
-                    validation_split=self.validation_split,
-                    epochs=epochs,
-                    batch_size=batch_size,
-                    sample_weight=[sample_weight,sample_weight],
-                    callbacks=callbackslist)
-        else:
-            history=rand_model.fit(input,
-                    output,
-                    validation_split=self.validation_split,
-                    epochs=epochs,
-                    batch_size=batch_size,
-                    callbacks=callbackslist)
-        valid_loss = history.history['val_loss'][-1]
+        # print('Training...')
+        # # print(input)
+        # # print(output)
+        # if self.WeightRecent == 'Yes':
+        #     history =rand_model.fit(input,
+        #             output,
+        #             validation_split=self.validation_split,
+        #             epochs=epochs,
+        #             batch_size=batch_size,
+        #             sample_weight=[sample_weight,sample_weight],
+        #             callbacks=callbackslist)
+        # else:
+        #     history=rand_model.fit(input,
+        #             output,
+        #             validation_split=self.validation_split,
+        #             epochs=epochs,
+        #             batch_size=batch_size,
+        #             callbacks=callbackslist)
+        # valid_loss = history.history['val_loss'][-1]
     
         params = [layers,neurons,activation_list,dropout,optimizer,learning,lr_decay,factor,patience,min_lr,epochs,batch_size]
         os.makedirs(self.outputFolder+ 'training/model_{}_{}'.format(rnd,set_i))
@@ -270,6 +281,8 @@ class IDNN_Model(Model):
         # writeparams.write(params)
        
         # print('Valid loss',valid_loss)
+            
+        print('idnn_model line 276')
 
         return valid_loss,params
     
@@ -289,28 +302,60 @@ class IDNN_Model(Model):
     
     def train(self,rnd):
         input, output = self.load_data(rnd,singleRnd=True) 
-        self.mode,_ = self.surrogate_training(rnd,self.model,input,output)
+        self.model,_ = self.surrogate_training(rnd,self.model,input,output)
     
+
+    def input_columns_to_training(self,input,output=None, unique_inputs=True):
+        input_new = []
+        output_new = []
+        input_non_derivative = []
+        j=0
+        k=0
+        for i in range(np.size(self.input_alias)):
+            _,_,derivative_dim,dimension,adjust = self.dict.get_category_values(self.input_alias[i])
+            # input[:][i] = (input[:][i]+adjust[0])*adjust[1]
+            if derivative_dim:
+                if j==0:
+                    input_new = input[:][i]
+                else:
+                    input_new = np.hstack((input_new,input[:][i]))
+                j+=1
+            else:
+                print(self.input_alias[i])
+                if k==0:
+                    input_non_derivative =input[:][i]
+                else:
+                    input_non_derivative = np.hstack((input_non_derivative,input[:][i]))
+                k+=1
+        
+        if unique_inputs:
+            input = [input_new,input_new,input_new,input_non_derivative]
+        else:
+            input = [input_new,input_non_derivative]
+
+        if output == None:
+            return input
+
+        else:
+            for i in range(np.size(self.output_alias)):
+                if i==0:
+                    output_new = output[:][i]
+                else:
+                    output_new = np.hstack((output_new,output[:][i]))
+
+
+            return input, [np.zeros((np.shape(output_new)[0])),output_new,output_new*0 ]
+
 
     def surrogate_training(self,rnd,model,input,output,set_i=None,learning_rate='default'):
 
         if learning_rate == 'default':
             learning_rate = self.learning
-            
 
+        
+        input,output = self.input_columns_to_training(input,output)
+        
         inds = np.arange(input[0].shape[1])
-        np.random.shuffle(inds)
-        input2 = []
-        for i in input:
-            input2.append(i[:,inds].T)
-
-        input = input2
-
-        output2 = []
-        for i in output:
-            output2.append(i[:,inds].T)
-
-        output = output2
 
         if self.WeightRecent == 'Yes':
             # weight the most recent high error points as high as all the other points
@@ -337,8 +382,12 @@ class IDNN_Model(Model):
             earlyStopping = EarlyStopping(patience=self.Patience)
             callbackslist.append(earlyStopping)
 
-        print('Training...')
+        # print('Training...')
         # print('model training',model)
+        # print(input)
+        # print(output)
+
+        
         if self.WeightRecent == 'Yes':
             history =model.fit(input,
                     output,

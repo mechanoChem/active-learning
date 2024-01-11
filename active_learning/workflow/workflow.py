@@ -59,6 +59,7 @@ class Workflow():
             if self.Data_Generation_Source=='CASM' or self.Data_Generation_Source=='CASM_Surrogate':
                 self.sampling = CASM_Sampling(self.model, self.dict)
         self.recommender = DataRecommender(self.model,self.dict)
+        self.recommender.construct_input_types()
 
 
     def construct_model(self):
@@ -99,13 +100,14 @@ class Workflow():
 
 
     def explore(self):
+        self.recommender.explore(self.rnd)
         if self.sample_known_wells:
-            print('Sampling Wells')
+            print('Sampling Wells and End Members')
             self.recommender.sample_wells(self.rnd)
         if self.sample_known_vertices:
             print('Sampling Vertices')
             self.recommender.sample_vertices(self.rnd)
-        self.recommender.explore(self.rnd)
+        
 
 
     

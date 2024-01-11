@@ -67,35 +67,74 @@ class DataRecommender():
     def load_data(self,rnd,singleRnd=True):
         print('loading data')
         if singleRnd:
-            input, input_non_derivative, output =  np.load(self.OutputFolder + 'data/data_sampled/results{}.npy'.format(rnd),allow_pickle=True)
+            data =  np.load(self.OutputFolder + 'data/data_sampled/results{}.npy'.format(rnd),allow_pickle=True)
         else:
-            input, input_non_derivative, output =  np.load(self.OutputFolder + 'data/data_sampled/allResults{}.npy'.format(rnd),allow_pickle=True)
+            data =  np.load(self.OutputFolder + 'data/data_sampled/allResults{}.npy'.format(rnd),allow_pickle=True)
         
-        j=0
-        for i in range(np.size(self.input_alias)):
-            _,_,derivative_dim,dimension,adjust = self.dict.get_category_values(self.input_alias[i])
-            if derivative_dim:
-                input[:,:,i] = (input[:,:,i]+adjust[0])*adjust[1]
-            else:
-                input_non_derivative[:,j] = (input_non_derivative[:,j]+adjust[0])*adjust[1]
-                j+=1
-
-        input = [input[0,:,:].T,input[1,:,:].T,input[2,:,:].T, input_non_derivative[0,:,:].T]
-
-        for i in range(np.size(self.output_alias)):
-            derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[i])
-            output[:][derivative] = (output[:][derivative]+adjust[0])*adjust[1]
         
+        input, output = self.model.array_to_column(data)
+        # input,output = self.model.input_columns_to_training(input,output,unique_inputs=False)
+
+        # output = []
+
         return input,output
+    
+
+    #given a set of points, should perturb them if applicable
+    #then write them
+    #input is a list, where each entry is an array corresponding to 
+    #different input variables. The array is ordered by importance
+    #repeat is an array with the number of search points
+    #duplicate is an array of same size of repeat, saying how many times
+    #each point should be duplicated
+
+    def find_new_points(self,input,repeat,duplicate,perturb):
+        input_local = []
+        for k in range(np.size(self.type_of_input)):
+            col = input[k]
+            if (np.shape(col)[0]==np.size(col)):
+                col = np.reshape(col,(np.size(col),1) )
+            
+            start = 0
+            for i in range(np.size(repeat)):
+                if i==0:
+                    input_local_col = np.repeat(col[start:repeat[i]][:],duplicate[i],axis=0)
+                    start=repeat[i]
+                else:
+                    new_values = np.repeat(col[start:start+repeat[i],:],duplicate[i],axis=0)
+                    start = start+repeat[i]
+                    input_local_col = np.vstack((input_local_col,new_values))
+
+            if self.type_of_input[k] == 0 or self.type_of_input[k] == 1: 
+                #EDIT to include perturbation option for discrete
+                input_local_col += perturb[0]*(np.random.rand(*input_local_col.shape)-perturb[1]) #perturb points randomly
+            
+            input_local.append(input_local_col)
+        return input_local
+
+
+    def combine_list(self, points):
+        array = np.array([])
+        for i in range(len(points)):
+            col = points[i]
+            if i== 0:
+                array = points[i]
+            else:
+                array =np.hstack((array,points[i]))
+        return array
+
 
     def find_wells(self,rnd,dim=4,bounds=[0,0.25],rereference=True):
 
     # Find "wells" (regions of convexity, with low gradient norm)
+        
 
     # First, rereference the free energy
         input = self.input.copy()
         output = self.output.copy()
         pred = self.output_pred.copy()
+
+        # input = [input[1], input[3]]
 
         mu = pred[1]
         # if rereference:
@@ -117,22 +156,15 @@ class DataRecommender():
         gradNorm = gradNorm[ind2]
 
         I = np.argsort(gradNorm)
-        
-        input_local = []
-        
-        for column in input:
 
-            col = column[I]
-            for i in range(np.shape(self.wells_repeat)[0]):
-                if i ==0:
-                    input_local_col = np.repeat(col[:self.wells_repeat_points[i]],self.wells_repeat[i],axis=0)
-                else:
-                    new_values = np.repeat(col[self.wells_repeat_points[i-1]:self.wells_repeat_points[i-1]+self.wells_repeat_points[i]],self.wells_repeat[i],axis=0)
-                    input_local_col = np.vstack((input_local_col,new_values))
-            input_local_col += (np.random.rand(*input_local_col.shape)-0.5) #perturb points randomly
-            input_local.append(input_local_col)
         
-        input_local = self.relevent_columns(input_local)
+        for k in range(np.size(self.type_of_input)):
+            column = input[k]
+            input[k] = column[I]
+        
+        input_local = self.find_new_points(input,self.wells_repeat_points,self.wells_repeat,[0.15,.5])
+        input_local = self.combine_list(input_local)
+
         if np.shape(input_local)[0] != 0:
             self.write(rnd, 'find_wells', input_local)
         else:
@@ -140,34 +172,22 @@ class DataRecommender():
 
 
         return input_local
-
-
-
     
-    def sample_wells(self, rnd,N_w):
-        # N_w Number of random points per vertex
-        print('Sampling wells and end members...')
-        etaW = self.Wells  
-        etaW = np.repeat(etaW,N_w,axis=0)
-        etaW  += 0.15*(np.random.rand(*etaW.shape)-0.5)
-        return etaW 
 
-        # Sample between wells
-        
-        
-        
-    def sample_vertices(self,rnd,N_w2):
-        # Get vertices
-        etaB = self.Vertices
-        #print(etaB)
+    def sample_external_data(self,rnd,path, name):
+        columns = np.load(path,allow_pickle=True) 
+        #EDIT - be more generic
+        columns = [columns[:,0:1],columns[:,1:7],columns[:,7:8]]
+        input_local = self.find_new_points(columns,[10],[self.wells_points],[0.15,.5])
+        input_local= self.combine_list(input_local)
+        self.write(rnd, name, input_local)
 
-        etaW2 = np.zeros((2*(self.dim-1)*N_w2,self.dim))
-        etaW2[:,0] = etaB[0,0]
-        etaW2 += 0.05*(np.random.rand(*etaW2.shape)-0.5) # Small random perterbation
-        for i in range(1,self.dim):
-            for j in range(2*N_w2):
-                etaW2[2*(i-1)*N_w2 + j,i] = np.random.rand()*(etaB[2*i-2,i] - etaB[2*i-1,i]) + etaB[2*i-1,i] # Random between positive and negative well
-        return etaW2
+
+    def sample_wells(self, rnd):
+        self.sample_external_data(rnd,self.wells,'sample_wells')
+           
+    def sample_vertices(self,rnd):
+        self.sample_external_data(rnd,self.vertices,'sample_vertices')
     
 
     def create_test_set_sobol(self,N_points,dim,bounds=[0.,1.],seed=1):
@@ -202,18 +222,43 @@ class DataRecommender():
         mu_test = 0.25*kB*T*np.log(x_test/(1.-x_test)).dot(invQ)
 
         return mu_test
+    
+    def construct_input_types(self):
+        [self.type_of_input] = self.dict.get_individual_keys('Ordering',['type_of_input'])
+
+    #     self.type_of_input = np.array([]) #type of input: 0 -continuous_dependent, 1 - continuos_independent, 2- discrete 
+    #     self.model_order = np.array([])
+    #     for i in range(np.size(self.input_alias)):
+    #         domaintype = self.dict.get_individual_keys(self.input_alias[i],['domain_type'])
+    #         if domaintype == 'continuous_dependent':
+    #             self.type_of_input = np.hstack((self.type_of_input,np.zeros(1)))
+    #         if domaintype == 'continuous_independent':
+    #             self.type_of_input = np.hstack((self.type_of_input,np.ones(np.size(1))))
+    #         if domaintype == 'discrete':
+    #             self.type_of_input = np.hstack((self.type_of_input,2*np.ones(1)))
+    #         modeltype = self.dict.get_individual_keys(self.input_alias[i],['derivative_dim'])
+    #         if modeltype:
+    #             self.model_order=np.hstack((self.model_order,np.ones(np.size(1))))
+    #         else:
+    #             self.model_order=np.hstack((self.model_order,np.zeros(np.size(1))))
+
+    #     # for x in self.sampling_dict['continuous_dependent']:
+    #     #     self.type_of_input = np.hstack((self.type_of_input,np.zeros(1)))
+    #     # for y in self.sampling_dict['continuous_independent']:
+    #     #     self.type_of_input = np.hstack((self.type_of_input,np.ones(np.size(1))))
+    #     # for z in self.sampling_dict['discrete']:
+    #     #     self.type_of_input = np.hstack((self.type_of_input,2*np.ones(1)))
+    #     # #reorder
 
     def explore(self,rnd):
 
         output = np.ones((self.N_global_pts,1))
         outputorder = []
 
-        for domain in self.sampling_dict['continuous_dependent'] :
-            # print(self.sampling_dict['continuous_dependent'][domain])
-            # [value] = self.sampling_dict['continuous_dependent'][domain]['values']
-            outputorder += self.sampling_dict['continuous_dependent'][domain]['dim']*self.sampling_dict['continuous_dependent'][domain]['values']
-            # print(self.sampling_dict['continuous_dependent'][domain])
 
+       
+        for domain in self.sampling_dict['continuous_dependent'] :
+            # outputorder += self.sampling_dict['continuous_dependent'][domain]['dim']*self.sampling_dict['continuous_dependent'][domain]['values']
             test_set = self.sampling_dict['continuous_dependent'][domain]['type']
 
             
@@ -247,11 +292,11 @@ class DataRecommender():
                     n_planes,c_planes,self.N_global_pts,
                                         N_boundary=N_b)
             output = np.hstack((output,eta[0:self.N_global_pts,:]))
+            # self.type_of_input = np.hstack((self.type_of_input,np.zeros(1)))
 
         for domain in self.sampling_dict['continuous_independent']:
-            outputorder += self.sampling_dict['continuous_independent'][domain]['dim']*self.sampling_dict['continuous_independent'][domain]['values']
+            # outputorder += self.sampling_dict['continuous_independent'][domain]['dim']*self.sampling_dict['continuous_independent'][domain]['values']
             range = self.sampling_dict['continuous_independent'][domain]
-            # dim = self.sampling_dict['continuous_independent']
             random_continous = np.random.uniform(low=range[0], high=range[1], size=(self.N_global_pts,1))
             output = np.hstack((output,random_continous))
 
@@ -266,22 +311,13 @@ class DataRecommender():
         
     #EDIT - reorder these to match input_alias 
 
-        
+        # print(self.type_of_input)
         output = output[:,1:]
-        # print(outputorder)
-
-        # df = pd.DataFrame(output,index=outputorder)
-
-        # print(df)
-
-        # new_index = df.reindex(self.input_alias)
-
-        # print(new_index)
         self.write(rnd, test_set, output)       
 
 
     def relevent_columns(self,input):
-        return np.hstack((input[1],input[3]))
+        return np.hstack((input[0],input[1]))
 
 
    ########################################
@@ -295,10 +331,11 @@ class DataRecommender():
         hessian= pred[2]
 
 
-        eigen = np.zeros(input[0].shape)
+
+        eigen = np.zeros(mu.shape)
         eigenvector = np.zeros(hessian.shape)
 
-
+        print(np.shape(eigen))
 
         for i in range(len(hessian)):
             eigen[i,:], eigenvector[i,:,:] = LA.eig(hessian[i,:,:])
@@ -308,27 +345,18 @@ class DataRecommender():
 
 
         
-        eigen = eigen/np.max(np.abs(eigen),axis=0)
-        # print(kappa_test)
-        I = arg_zero_eig(eigen,tol)#*(eta[:,0] > .45)*(eta[:,0] < .55)
-        input_local = []
+
+        # input = [input[1], input[3]]
 
 
-        for column in input:
 
-            col = column[I]
-            for i in range(np.shape(self.hessian_repeat)):
-                if i ==0:
-                    input_local_col = np.repeat(col[:self.hessian_repeat_points[i]],self.hessian_repeat[i],axis=0)
-                else:
-                    new_values = np.repeat(col[self.hessian_repeat_points[i-1]:self.hessian_repeat_points[i-1]+self.hessian_repeat_points[i]],self.hessian_repeat[i],axis=0)
-                    input_local_col = np.vstack((input_local_col,new_values))
-            input_local_col += 0.02*2.*(np.random.rand(*input_local_col.shape)-0.5) #perturb points randomly
-            input_local.append(input_local_col)
-        input_local = self.relevent_columns(input_local)
 
-        # print(np.shape(input_local))
-        # print(np.shape(input_local)[0])
+        input_local = self.find_new_points(input, self.hessian_repeat_points, self.hessian_repeat,[.04,0.5])
+
+
+
+
+        input_local = self.combine_list(input_local)
 
         if np.shape(input_local)[0] != 0:
             self.write(rnd, 'hessian', input_local)
@@ -343,6 +371,8 @@ class DataRecommender():
         print('Predicting...')
         self.output_pred = self.model.predict(self.input)
     
+
+
     def high_error(self,rnd):
         
 
@@ -357,32 +387,22 @@ class DataRecommender():
 
         for i in range(np.size(self.output_alias)):
             derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[i])
-            output[:][derivative] = (output[:][derivative]+adjust[0])*adjust[1]
+            # output[:][derivative] = (output[:][derivative]+adjust[0])*adjust[1]
 
             input_derivative = []
 
 
-            error = np.sum((output_pred[derivative].T - output[:][derivative])**2,axis=1)
-            
-            for column in input:
+            error = np.sum((output_pred[derivative] - output[:][i])**2,axis=1)
+            for k in range(np.size(self.type_of_input)):
+                column = input[k]
                 higherror =  column[np.argsort(error)[::-1],:]
-                
-                for i in range(np.shape(self.high_error_repeat)):
-                    if i ==0:
-                        input_local_col = np.repeat(higherror[:self.high_error_repeat_points[i],:],self.high_error_repeat[i],axis=0)
-                    else:
-                        new_values = np.repeat(higherror[self.high_error_repeat_points[i-1]:self.high_error_repeat_points[i-1]+self.high_error_repeat_points[i],:],self.high_error_repeat[i],axis=0)
-                        input_local_col = np.vstack((input_local_col,new_values))
-                input_local_col += (np.random.rand(*input_local_col.shape)-0.5) #perturb points randomly
-                input_derivative.append(input_local_col)
+                input[k]=higherror
             
-            if input_local == []:
-                input_local = input_derivative
-            else:
-                for i in range(len(input_local)):
-                    input_local[i]  = np.vstack((input_local[i],input_derivative[i]))
+            input_local = self.find_new_points(input, self.high_error_repeat_points, self.high_error_repeat,[.04,0.5])
+   
+        input_local = self.combine_list(input_local)
+  
 
-        input_local = self.relevent_columns(input_local)
         self.write(rnd, 'high_error', input_local)
 
         return input_local
