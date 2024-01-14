@@ -15,6 +15,7 @@ class Dictionary():
         self.construct_dict(input_file)
         self.dict['Main']['dir_path'] = os.path.dirname(input_file)
         self.maintain_input()
+        self.construct_input_types()
 
         # try:
         #     self.maintain_input()
@@ -92,22 +93,11 @@ class Dictionary():
 
 
     def verifypath(self,inputs):
-        # print('directory path',self.dict['Main']['dir_path'] )
-        # print(inputs)
         for i in range(np.shape(inputs)[0]):
-            # print('verifypath')
-            # print('original path',self.dict[inputs[i][0]][inputs[i][1]])
-            # print("ispath", os.path.isabs(self.dict[inputs[i][0]][inputs[i][1]]))
             if not os.path.isabs(self.dict[inputs[i][0]][inputs[i][1]]):
                 pathlocation = os.path.join( self.dict['Main']['dir_path'], self.dict[inputs[i][0]][inputs[i][1]])
                 assert(os.path.exists(pathlocation))
-                # print(pathlocation)
                 self.dict[inputs[i][0]][inputs[i][1]] = pathlocation
-            # print("is new path", os.path.isabs(self.dict[inputs[i][0]][inputs[i][1]]))
-            # assert(0==1)
-
-
-
 
 
     
@@ -186,13 +176,6 @@ class Dictionary():
             paths += ([['Explore_Parameters','vertices']])
 
 
-        # str_array_inputs += [['Training','loss']]
-        # float_array_inputs +=[['Training','loss_weights']]
-        # float_inputs += [['Training','lr_decay'],['Training','factor'],['Training','patience']]
-        
-        
-        
-        # int_array_inputs += [['Hyperparameter','layers_range'],['Hyperparameter','neurons_range']]
 
         
         if self.dict['Main']['restart'] == 'True':
@@ -264,6 +247,50 @@ class Dictionary():
             self.dict['Sampling']['continuous_dependent'][domain]['n_planes'] = np.vstack((invQ,-invQ))
             self.dict['Sampling']['continuous_dependent'][domain]['c_planes']= np.hstack((np.ones(invQ.shape[0]),np.zeros(invQ.shape[0])))
             self.dict['Sampling']['continuous_dependent'][domain]['invQ']= invQ
+        
+
+        # input_alias - the order that data appears in input/sampled_data
+        # training_order - the order that data appears to train - input, input_non_derivative, output
+        # should be reordered in idnn_model
 
         
         return True
+    
+    def construct_input_types(self):
+
+        [self.input_alias] = self.get_individual_keys('Main',['input_alias'])
+        
+        self.dict['Ordering']={}
+        self.type_of_input = np.array([]) #type of input: 0 -continuous_dependent, 1 - continuos_independent, 2- discrete 
+        self.model_order = []
+        j = 0
+        k = 0
+        for i in range(np.size(self.input_alias)):
+            [domaintype] = self.get_individual_keys(self.input_alias[i],['domain_type'])
+            # print('domaintype',domaintype)
+            if domaintype == 'continuous_dependent':
+                self.type_of_input = np.hstack((self.type_of_input,np.zeros(1)))
+            if domaintype == 'continuous_independent':
+                self.type_of_input = np.hstack((self.type_of_input,np.ones(np.size(1))))
+            if domaintype == 'discrete':
+                self.type_of_input = np.hstack((self.type_of_input,2*np.ones(1)))
+            [modeltype] = self.get_individual_keys(self.input_alias[i],['derivative_dim'])
+            if modeltype:
+                self.model_order.append([1,j])
+                j+=1
+            else:
+                self.model_order.append([0,k])
+                k+=1
+
+        self.dict['Ordering']['type_of_input']=self.type_of_input 
+        self.dict['Ordering']['model_order']=self.model_order
+
+        # print('dictionary Orderingellaneous')
+        # print(self.dict['Ordering'])
+        # for x in self.sampling_dict['continuous_dependent']:
+        #     self.type_of_input = np.hstack((self.type_of_input,np.zeros(1)))
+        # for y in self.sampling_dict['continuous_independent']:
+        #     self.type_of_input = np.hstack((self.type_of_input,np.ones(np.size(1))))
+        # for z in self.sampling_dict['discrete']:
+        #     self.type_of_input = np.hstack((self.type_of_input,2*np.ones(1)))
+        # #reorder
