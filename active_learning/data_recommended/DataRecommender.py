@@ -26,7 +26,7 @@ class DataRecommender():
         [self.N_global_pts, self.sample_known_wells,self.wells,
          self.wells_points,self.sample_known_vertice,self.vertices, 
          self.vertice_points] = self.dict.get_category_values('Explore_Parameters')
-        # [self.input_alias,self.OutputFolder] = self.dict.get_individual_keys(['input_alias','OutputFolder'])
+        # [self.inputs_alias,self.OutputFolder] = self.dict.get_individual_keys(['input_alias','OutputFolder'])
         [self.sample_hessian,self.hessian_repeat, self.hessian_repeat_points,
          self.sample_high_error, self.high_error_repeat, self.high_error_repeat_points,
          self.exploit_find_wells, self.wells_repeat,self.wells_repeat_points] = self.dict.get_category_values('Exploit_Parameters')
@@ -34,8 +34,8 @@ class DataRecommender():
 
         [self.Model_type,    
          self.Data_Generation, self.Data_Generation_Source, self.restart,
-         self.input_data,self.input_alias,self.output_alias, self.iterations,
-         self.OutputFolder, self.seed, self.Input_dim, self.derivative_dim,
+         self.inputs_data,self.inputs_alias,self.output_alias, self.iterations,
+         self.OutputFolder, self.seed, self.inputs_dim, self.derivative_dim,
          self.output_dim,self.config_path] = self.dict.get_category_values('Main')
 
         self.sampling_dict = self.dict.get_category('Sampling')
@@ -71,13 +71,14 @@ class DataRecommender():
         else:
             data =  np.load(self.OutputFolder + 'data/data_sampled/allResults{}.npy'.format(rnd),allow_pickle=True)
         
+        print('data line 74',data)
         
-        input, output = self.model.array_to_column(data)
-        # input,output = self.model.input_columns_to_training(input,output,unique_inputs=False)
+        inputs, output = self.model.array_to_column(data)
+        # inputs,output = self.model.input_columns_to_training(inputs,output,unique_inputs=False)
 
         # output = []
 
-        return input,output
+        return inputs,output
     
 
     #given a set of points, should perturb them if applicable
@@ -88,10 +89,10 @@ class DataRecommender():
     #duplicate is an array of same size of repeat, saying how many times
     #each point should be duplicated
 
-    def find_new_points(self,input,repeat,duplicate,perturb):
+    def find_new_points(self,inputs,repeat,duplicate,perturb):
         input_local = []
         for k in range(np.size(self.type_of_input)):
-            col = input[k]
+            col = inputs[k]
             if (np.shape(col)[0]==np.size(col)):
                 col = np.reshape(col,(np.size(col),1) )
             
@@ -130,7 +131,7 @@ class DataRecommender():
         
 
     # First, rereference the free energy
-        input = self.input.copy()
+        inputs = self.inputs.copy()
         output = self.output.copy()
         pred = self.output_pred.copy()
 
@@ -159,10 +160,10 @@ class DataRecommender():
 
         
         for k in range(np.size(self.type_of_input)):
-            column = input[k]
-            input[k] = column[I]
+            column = inputs[k]
+            inputs[k] = column[I]
         
-        input_local = self.find_new_points(input,self.wells_repeat_points,self.wells_repeat,[0.15,.5])
+        input_local = self.find_new_points(inputs,self.wells_repeat_points,self.wells_repeat,[0.15,.5])
         input_local = self.combine_list(input_local)
 
         if np.shape(input_local)[0] != 0:
@@ -177,7 +178,8 @@ class DataRecommender():
     def sample_external_data(self,rnd,path, name):
         columns = np.load(path,allow_pickle=True) 
         #EDIT - be more generic
-        columns = [columns[:,0:1],columns[:,1:7],columns[:,7:8]]
+        columns = [columns[:,0:7],columns[:,7:8]]
+        # columns = [columns[:,0:1],columns[:,1:7],columns[:,7:8]]
         input_local = self.find_new_points(columns,[10],[self.wells_points],[0.15,.5])
         input_local= self.combine_list(input_local)
         self.write(rnd, name, input_local)
@@ -228,15 +230,15 @@ class DataRecommender():
 
     #     self.type_of_input = np.array([]) #type of input: 0 -continuous_dependent, 1 - continuos_independent, 2- discrete 
     #     self.model_order = np.array([])
-    #     for i in range(np.size(self.input_alias)):
-    #         domaintype = self.dict.get_individual_keys(self.input_alias[i],['domain_type'])
+    #     for i in range(np.size(self.inputs_alias)):
+    #         domaintype = self.dict.get_individual_keys(self.inputs_alias[i],['domain_type'])
     #         if domaintype == 'continuous_dependent':
     #             self.type_of_input = np.hstack((self.type_of_input,np.zeros(1)))
     #         if domaintype == 'continuous_independent':
     #             self.type_of_input = np.hstack((self.type_of_input,np.ones(np.size(1))))
     #         if domaintype == 'discrete':
     #             self.type_of_input = np.hstack((self.type_of_input,2*np.ones(1)))
-    #         modeltype = self.dict.get_individual_keys(self.input_alias[i],['derivative_dim'])
+    #         modeltype = self.dict.get_individual_keys(self.inputs_alias[i],['derivative_dim'])
     #         if modeltype:
     #             self.model_order=np.hstack((self.model_order,np.ones(np.size(1))))
     #         else:
@@ -316,14 +318,14 @@ class DataRecommender():
         self.write(rnd, test_set, output)       
 
 
-    def relevent_columns(self,input):
-        return np.hstack((input[0],input[1]))
+    def relevent_columns(self,inputs):
+        return np.hstack((inputs[0],inputs[1]))
 
 
    ########################################
         ##exploit hessian values
     def hessian(self,rnd,tol=0.1):
-        input = self.input.copy()
+        inputs = self.inputs.copy()
         output = self.output.copy()
         pred = self.output_pred.copy()
         free = pred[0]
@@ -351,7 +353,7 @@ class DataRecommender():
 
 
 
-        input_local = self.find_new_points(input, self.hessian_repeat_points, self.hessian_repeat,[.04,0.5])
+        input_local = self.find_new_points(inputs, self.hessian_repeat_points, self.hessian_repeat,[.04,0.5])
 
 
 
@@ -367,9 +369,10 @@ class DataRecommender():
 
     def get_latest_pred(self,rnd):
         # print('Loading data...')
-        self.input,self.output = self.load_data(rnd-1)
+        self.inputs,self.output = self.load_data(rnd-1)
         print('Predicting...')
-        self.output_pred = self.model.predict(self.input)
+        print('inputs')
+        self.output_pred = self.model.predict(self.inputs.copy())
     
 
 
@@ -378,12 +381,13 @@ class DataRecommender():
 
         print('Finding high pointwise error...')
 
-        input = self.input.copy()
+        inputs = self.inputs.copy()
         output = self.output.copy()
         output_pred = self.output_pred.copy()
 
         input_local = []
 
+        print('inputs',inputs)
 
         for i in range(np.size(self.output_alias)):
             derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[i])
@@ -394,11 +398,11 @@ class DataRecommender():
 
             error = np.sum((output_pred[derivative] - output[:][i])**2,axis=1)
             for k in range(np.size(self.type_of_input)):
-                column = input[k]
+                column = inputs[k]
                 higherror =  column[np.argsort(error)[::-1],:]
-                input[k]=higherror
+                inputs[k]=higherror
             
-            input_local = self.find_new_points(input, self.high_error_repeat_points, self.high_error_repeat,[.04,0.5])
+            input_local = self.find_new_points(inputs, self.high_error_repeat_points, self.high_error_repeat,[.04,0.5])
    
         input_local = self.combine_list(input_local)
   

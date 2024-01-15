@@ -5,7 +5,7 @@ import os, shutil, copy
 import fileinput as fin
 from time import sleep
 from shutil import copyfile
-from active_learning.data_collector.Sampling import Sampling
+from active_learning.data_collector.sampling import Sampling
 import pandas as pd
 
 class CASM_Sampling(Sampling):    
@@ -170,7 +170,7 @@ class CASM_Sampling(Sampling):
             else:
                 mu_test = np.zeros(np.shape(eta))
         else:
-            mu_test = self.model.predict([eta[:,0:1],eta[:,1:],T])[1]
+            mu_test = self.model.predict([eta,T])[1]
 
 
         kappa = eta + 0.5*mu_test/self.phi

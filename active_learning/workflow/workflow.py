@@ -238,7 +238,7 @@ class Workflow():
             
             #next Training
             self.step == 'Model_training'
-            if self.rnd == 1 or not self.better_than_prev(self.rnd-1):
+            if self.rnd == 6 or not self.better_than_prev(self.rnd-1):
                 print('Perform hyperparameter search...')
                 self.hyperparameter_search(self.rnd)
             else:

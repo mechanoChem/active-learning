@@ -49,33 +49,39 @@ class IDNN_Model(Model):
         # self.learning_rate = np.power(10,(np.log10(self.LR_range[1]) - np.log10(self.LR_range[0]))*np.random.rand(1)[0] + np.log10(0.0001),dtype=np.float32)
     
     def predict(self,data):
-        data = self.input_columns_to_training(data)
         data= self.scale_loaded_data(data)
+        data = self.input_columns_to_training(data)
+        print('predict')
+        print('inputs',data)
+        # print('outputs',output)
         output = self.model.predict(data)
         return self.scale_output_back(output)
     
-    def adjust_scaling(self,input,value):
-        #input non derivative - temperature
-        #input regular - eta's
-        #output - free/mu
+    # def adjust_scaling(self,input,value):
+    #     #input non derivative - temperature
+    #     #input regular - eta's
+    #     #output - free/mu
 
-         [adjust]= self.dict.get_individual_keys(value,['adjust'])
-         input = (input+adjust[0])*adjust[1]
-         return input
+    #      [adjust]= self.dict.get_individual_keys(value,['adjust'])
+    #      input = (input+adjust[0])*adjust[1]
+    #      return input
 
     def array_to_column(self, data):
         #self.input_alias x,eta,T
         column_list_input = []
         column_list_output = []
         position = 0
-        for input in self.input_alias:
-            [dim] =self.dict.get_individual_keys(input,['dimensions'])
+        for inputs in self.input_alias:
+            [dim] =self.dict.get_individual_keys(inputs,['dimensions'])
             column_list_input.append(data[:,position:dim+position])
             position+=dim
         for output in self.output_alias:
             [dim] =self.dict.get_individual_keys(output,['dimensions'])
             column_list_output.append(data[:,position:dim+position])
             position+=dim
+
+        print('array to column')
+        print(column_list_input)
 
         return column_list_input,column_list_output
             
@@ -84,20 +90,25 @@ class IDNN_Model(Model):
         # model_order = self.dict.get_individual_keys('Ordering',['model_order'])
 
 
-    def scale_loaded_data(self,input, output=None):
+    def scale_loaded_data(self,inputs, output=None):
         #Switch to columns
         # input, output = self.array_to_column(input,output) 
 
         for i in range(np.size(self.input_alias)):
+            # print('scaling ',self.input_alias[i])
             _,_,derivative_dim,dimension,adjust = self.dict.get_category_values(self.input_alias[i])
-            input[:][i] = (input[:][i]+adjust[0])*adjust[1]  
+            # print(inputs[i] )
+            temp = (inputs[i]+adjust[0])*adjust[1] 
+            inputs[i] = temp
+            # print(inputs[i])
+        # exit()
         if output == None:
-            return input
+            return inputs
         else:
             for i in range(np.size(self.output_alias)):
                 derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[i])
                 output[:][i] = (output[:][i]+adjust[0])*adjust[1]
-            return input,output
+            return inputs,output
 
     def scale_output_back(self,output):
         for i in range(np.size(self.output_alias)):
@@ -118,8 +129,12 @@ class IDNN_Model(Model):
         return self.scale_loaded_data(input, output)
         
     def loss(self,rnd):
-        input,output = self.load_data(rnd,singleRnd=True) #Params[0] returns input, Params[1] returns output
-        return self.model.evaluate(input,output)
+        inputs,output = self.load_data(rnd,singleRnd=True) #Params[0] returns input, Params[1] returns output
+        inputs,output = self.input_columns_to_training(inputs,output)
+        print('loss method')
+        print('inputs',inputs)
+        print('outputs',output)
+        return self.model.evaluate(inputs,output)
         # input2 = []
         # for i in input:
         #     input2.append(i.T)
@@ -183,7 +198,7 @@ class IDNN_Model(Model):
         [layers,neurons,epochs,batch_size] = self.parameter_int(['layers','neurons','epochs','batch_size'])
         [dropout,learning,lr_decay,factor,patience,min_lr] = self.parameter_float(['dropout','learning','lr_decay','factor','patience','min_lr'])
 
-        input, output = self.load_data(rnd,singleRnd=True) 
+        inputs, output = self.load_data(rnd,singleRnd=True) 
         # if learning != None:
         #     learning_rate = np.power(10,(np.log10(learning[1]) - np.log10(learning[0]))*np.random.rand(1)[0] + np.log10(0.0001),dtype=np.float32)
         # else:
@@ -213,7 +228,7 @@ class IDNN_Model(Model):
                         loss_weights=self.loss_weights,
                         optimizer=eval(opt)(learning_rate=learning*lr_decay))
 
-        rand_model,valid_loss = self.surrogate_training(rnd,rand_model,input,output,set_i,learning)
+        rand_model,valid_loss = self.surrogate_training(rnd,rand_model,inputs,output,set_i,learning)
 
 
         # inds = np.arange(input[0].shape[1])
@@ -282,7 +297,6 @@ class IDNN_Model(Model):
        
         # print('Valid loss',valid_loss)
             
-        print('idnn_model line 276')
 
         return valid_loss,params
     
@@ -301,11 +315,11 @@ class IDNN_Model(Model):
 
     
     def train(self,rnd):
-        input, output = self.load_data(rnd,singleRnd=True) 
-        self.model,_ = self.surrogate_training(rnd,self.model,input,output)
+        inputs, output = self.load_data(rnd,singleRnd=True) 
+        self.model,_ = self.surrogate_training(rnd,self.model,inputs,output)
     
 
-    def input_columns_to_training(self,input,output=None, unique_inputs=True):
+    def input_columns_to_training(self,inputs,output=None, unique_inputs=True):
         input_new = []
         output_new = []
         input_non_derivative = []
@@ -316,25 +330,24 @@ class IDNN_Model(Model):
             # input[:][i] = (input[:][i]+adjust[0])*adjust[1]
             if derivative_dim:
                 if j==0:
-                    input_new = input[:][i]
+                    input_new = inputs[:][i]
                 else:
-                    input_new = np.hstack((input_new,input[:][i]))
+                    input_new = np.hstack((input_new,inputs[:][i]))
                 j+=1
             else:
-                print(self.input_alias[i])
                 if k==0:
-                    input_non_derivative =input[:][i]
+                    input_non_derivative =inputs[:][i]
                 else:
-                    input_non_derivative = np.hstack((input_non_derivative,input[:][i]))
+                    input_non_derivative = np.hstack((input_non_derivative,inputs[:][i]))
                 k+=1
         
         if unique_inputs:
-            input = [input_new,input_new,input_new,input_non_derivative]
+            inputs = [input_new,input_new,input_new,input_non_derivative]
         else:
-            input = [input_new,input_non_derivative]
+            inputs = [input_new,input_non_derivative]
 
         if output == None:
-            return input
+            return inputs
 
         else:
             for i in range(np.size(self.output_alias)):
@@ -344,22 +357,22 @@ class IDNN_Model(Model):
                     output_new = np.hstack((output_new,output[:][i]))
 
 
-            return input, [np.zeros((np.shape(output_new)[0])),output_new,output_new*0 ]
+            return inputs, [np.zeros((np.shape(output_new)[0])),output_new,output_new*0 ]
 
 
-    def surrogate_training(self,rnd,model,input,output,set_i=None,learning_rate='default'):
+    def surrogate_training(self,rnd,model,inputs,output,set_i=None,learning_rate='default'):
 
         if learning_rate == 'default':
             learning_rate = self.learning
 
         
-        input,output = self.input_columns_to_training(input,output)
+        inputs,output = self.input_columns_to_training(inputs,output)
         
-        inds = np.arange(input[0].shape[1])
+        inds = np.arange(inputs[0].shape[1])
 
         if self.WeightRecent == 'Yes':
             # weight the most recent high error points as high as all the other points
-            n_points = len(input)
+            n_points = len(inputs)
             sample_weight = np.ones(n_points)
             if rnd > 0:
                 sample_weight[-1000:] = max(1,(n_points-1000)/(2*1000))
@@ -387,17 +400,22 @@ class IDNN_Model(Model):
         # print(input)
         # print(output)
 
+        print('surrogate training')
+        print('inputs',inputs)
+        print('outputs',output)
+
         
         if self.WeightRecent == 'Yes':
-            history =model.fit(input,
+            history =model.fit(inputs,
                     output,
                     validation_split=self.validation_split,
                     epochs=self.epochs,
                     batch_size=self.batch_size,
                     sample_weight=[sample_weight,sample_weight],
                     callbacks=callbackslist)
+        
         else:
-            history=model.fit(input,
+            history=model.fit(inputs,
                     output,
                     validation_split=self.validation_split,
                     epochs=self.epochs,
@@ -412,4 +430,4 @@ class IDNN_Model(Model):
         sys.path.append(self.config_path+self.transform_path)
         from TransformsModule import transforms 
 
-        return transforms
+        # return transforms
