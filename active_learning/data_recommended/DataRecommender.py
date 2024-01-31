@@ -71,7 +71,7 @@ class DataRecommender():
         else:
             data =  np.load(self.OutputFolder + 'data/data_sampled/allResults{}.npy'.format(rnd),allow_pickle=True)
         
-        print('data line 74',data)
+        # print('data line 74',data)
         
         inputs, output = self.model.array_to_column(data)
         # inputs,output = self.model.input_columns_to_training(inputs,output,unique_inputs=False)
@@ -175,21 +175,45 @@ class DataRecommender():
         return input_local
     
 
-    def sample_external_data(self,rnd,path, name):
+    def sample_external_data(self,rnd,path,value, name):
         columns = np.load(path,allow_pickle=True) 
         #EDIT - be more generic
         columns = [columns[:,0:7],columns[:,7:8]]
         # columns = [columns[:,0:1],columns[:,1:7],columns[:,7:8]]
-        input_local = self.find_new_points(columns,[10],[self.wells_points],[0.15,.5])
+        input_local = self.find_new_points(columns,[10],[self.wells_points],[value[0],value[1]])
         input_local= self.combine_list(input_local)
         self.write(rnd, name, input_local)
 
 
     def sample_wells(self, rnd):
-        self.sample_external_data(rnd,self.wells,'sample_wells')
+        self.sample_external_data(rnd,self.wells,[.15,0.5],'sample_wells')
            
     def sample_vertices(self,rnd):
-        self.sample_external_data(rnd,self.vertices,'sample_vertices')
+        etaB = np.zeros((2*(7-1),7))
+        T = 300*np.ones((2*(7-1),1))
+        # wells
+        etaB[:,0] = 0.5
+        for i in range(1,7):
+            etaB[2*i-2,i] = 0.5
+            etaB[2*i-1,i] = -0.5
+        if rnd==0:
+            kappaB = etaB
+        else:
+            phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
+            muB = 0.01*self.model.predict([etaB,T])[1]
+            kappaB = etaB + 0.5*muB/phi
+
+        N_w2 = 20 # Number of random points per vertex
+        kappaW2 = np.zeros((2*(7-1)*N_w2,7))
+        temp = 300*np.ones((2*(7-1)*N_w2,1))
+        kappaW2[:,0] = kappaB[0,0]
+        kappaW2 += 0.05*(np.random.rand(*kappaW2.shape)-0.5) # Small random perterbation
+        for i in range(1,7):
+            for j in range(2*N_w2):
+                kappaW2[2*(i-1)*N_w2 + j,i] = np.random.rand()*(kappaB[2*i-2,i] - kappaB[2*i-1,i]) + kappaB[2*i-1,i] # Random between positive and negative well
+        input_local = np.hstack((kappaW2,temp))
+        self.write(rnd, 'sample_vertices', input_local)
+        # self.sample_external_data(rnd,self.vertices,[-.05,0],'sample_vertices')
     
 
     def create_test_set_sobol(self,N_points,dim,bounds=[0.,1.],seed=1):
@@ -257,6 +281,8 @@ class DataRecommender():
         output = np.ones((self.N_global_pts,1))
         outputorder = []
 
+        test_set = 'grid_search'
+
 
        
         for domain in self.sampling_dict['continuous_dependent'] :
@@ -299,22 +325,31 @@ class DataRecommender():
         for domain in self.sampling_dict['continuous_independent']:
             # outputorder += self.sampling_dict['continuous_independent'][domain]['dim']*self.sampling_dict['continuous_independent'][domain]['values']
             range = self.sampling_dict['continuous_independent'][domain]
-            random_continous = np.random.uniform(low=range[0], high=range[1], size=(self.N_global_pts,1))
+            [dim] = self.dict.get_individual_keys(domain,['dimensions'])
+            random_continous = np.random.uniform(low=range[0], high=range[1], size=(self.N_global_pts,dim))
             output = np.hstack((output,random_continous))
 
+
+        
 
         for domain in self.sampling_dict['discrete']:
             # print(self.sampling_dict['discrete'][domain])
             # outputorder += self.sampling_dict['discrete'][domain]['dim']*self.sampling_dict['discrete'][domain]['values']
             range = self.sampling_dict['discrete'][domain]
-            random_discrete = np.random.choice(range,self.N_global_pts)
-            random_discrete = np.reshape(random_discrete,(self.N_global_pts,1))
+            [dim] = self.dict.get_individual_keys(domain,['dimensions'])
+            random_discrete = np.random.choice(range,self.N_global_pts*dim)
+            random_discrete = np.reshape(random_discrete,(self.N_global_pts,dim))
             output = np.hstack((output,random_discrete))
         
     #EDIT - reorder these to match input_alias 
 
+
         # print(self.type_of_input)
         output = output[:,1:]
+         ## EDIT - temporary 
+        output = output[0.5-np.abs(output[:,0]-0.5) > np.abs(output[:,1]) ]
+
+
         self.write(rnd, test_set, output)       
 
 
@@ -387,7 +422,7 @@ class DataRecommender():
 
         input_local = []
 
-        print('inputs',inputs)
+        # print('inputs',inputs)
 
         for i in range(np.size(self.output_alias)):
             derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[i])
@@ -402,7 +437,8 @@ class DataRecommender():
                 higherror =  column[np.argsort(error)[::-1],:]
                 inputs[k]=higherror
             
-            input_local = self.find_new_points(inputs, self.high_error_repeat_points, self.high_error_repeat,[.04,0.5])
+            print('high error og points order',inputs)
+            input_local = self.find_new_points(inputs, self.high_error_repeat_points, self.high_error_repeat,[.004,0.5])
    
         input_local = self.combine_list(input_local)
   

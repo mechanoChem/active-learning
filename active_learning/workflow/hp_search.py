@@ -11,7 +11,7 @@ from importlib import import_module
 from time import sleep
 import sys
 
-def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, walltime, memory):
+def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, walltime, memory,outputfolder):
     """ A function to submit the job scripts for a each set of hyperparameters
     in the hyperparameter search in the active learning workflow.
 
@@ -49,7 +49,7 @@ def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, wall
             script.append('{}'.format(command))
         script.append('valid_loss,params = {}(rnd,i)'.format(training_func))
         script.append('if not np.isnan(valid_loss):')
-        script.append("\tfout = open('hparameters_{}.txt','w')".format(i))
+        script.append("\tfout = open('{}hparameters_{}.txt','w')".format(outputfolder,i))
         script.append("\tfout.write('hparameters += [[{},\"{}_{}\",{}]]'.format(params,rnd,i,valid_loss))")
         script.append('\tfout.close()')
         if job_manager != 'PC':
@@ -82,7 +82,7 @@ def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account,
     """
     
     # Submit the training sessions with various hyperparameters
-    submitHPSearch(N_sets,rnd,commands,training_func, job_manager, account, walltime, memory)
+    submitHPSearch(N_sets,rnd,commands,training_func, job_manager, account, walltime, memory,outputfolder)
 
     # Wait for jobs to finish
     if job_manager != 'PC':
@@ -94,12 +94,12 @@ def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account,
     # Compare n_sets of random hyperparameters; choose the set that gives the lowest l2norm
     hparameters = []
     for i in range(N_sets):
-        filename = 'hparameters_'+str(i)+'.txt'
+        filename = outputfolder+'hparameters_'+str(i)+'.txt'
         if os.path.isfile(filename):
             fin = open(filename,'r')
             exec (fin.read()) # execute the code snippet written as a string in the read file
             fin.close()
-            os.remove('hparameters_'+str(i)+'.txt')
+            os.remove(outputfolder+'hparameters_'+str(i)+'.txt')
 
     # Sort by l2norm
     # print('hparameters: ', hparameters)

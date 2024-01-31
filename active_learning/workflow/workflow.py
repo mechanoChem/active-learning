@@ -53,11 +53,14 @@ class Workflow():
         else:
             self.step = 'Explorative'
         self.construct_model()
+        print('line 56')
         if self.restart==True:
             self.read_restart()
+            
         if self.Data_Generation:
             if self.Data_Generation_Source=='CASM' or self.Data_Generation_Source=='CASM_Surrogate':
                 self.sampling = CASM_Sampling(self.model, self.dict)
+        print('line 63')
         self.recommender = DataRecommender(self.model,self.dict)
         self.recommender.construct_input_types()
 
@@ -73,7 +76,7 @@ class Workflow():
     def read_restart(self):
         #  self.dict_restart = Dictionary(input_path)
          [self.rnd, self.step] = self.dict.get_category_values('Restart')
-         self.model.load_model(self.rnd-1)
+         self.model.load_trained_model(self.rnd-1)
 
     # def save_restart(self):
     #     params = [self.rnd, self.step]
@@ -83,7 +86,7 @@ class Workflow():
 
 
     def handle_input_data(self,input_file):
-        input_results = np.loadtxt('input_file')
+        input_results = np.loadtxt('allResults49.txt')
         if os.exists(self.OutputFolder +'data_sampled/allResults.txt'):
             allResults = np.loadtxt(self.OutputFolder +'data_sampled/allResults.txt')
             allResults = np.vstack(allResults,input_file)
@@ -145,7 +148,7 @@ class Workflow():
     
         params = hyperparameterSearch(rnd,N_hp_sets,commands,training_func, job_manager,account,walltime,mem,self.OutputFolder)
         # self.model.new_model(params)
-        self.model.load_model(rnd)
+        self.model.load_trained_model(rnd)
     
     def IDNN_transforms(self):
 
@@ -165,12 +168,12 @@ class Workflow():
 
         # Get loss of previous idnn
         keras.backend.clear_session()
-        lastmodel = self.model.load_model(rnd-1)#, custom_objects={'Transform': self.IDNN_transforms()})
+        lastmodel = self.model.load_trained_model(rnd-1)#, custom_objects={'Transform': self.IDNN_transforms()})
         prev_loss = self.model.loss(rnd)
 
 
         # Reload current IDNN
-        self.model.load_model(rnd)#, custom_objects={'Transform': self.IDNN_transforms()})
+        self.model.load_trained_model(rnd)#, custom_objects={'Transform': self.IDNN_transforms()})
         if current_loss < prev_loss:
             return True
         else:
@@ -238,7 +241,7 @@ class Workflow():
             
             #next Training
             self.step == 'Model_training'
-            if self.rnd == 6 or not self.better_than_prev(self.rnd-1):
+            if self.rnd == 1 or not self.better_than_prev(self.rnd-1):
                 print('Perform hyperparameter search...')
                 self.hyperparameter_search(self.rnd)
             else:
