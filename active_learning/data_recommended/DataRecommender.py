@@ -40,19 +40,71 @@ class DataRecommender():
 
         self.sampling_dict = self.dict.get_category('Sampling')
 
+    def keep_good_output(self,output,type):
+        eta = output[:,0:7]
+        # self.sampling_dict['continuous_dependent'][domain]['type']
+        Qinv = self.sampling_dict['continuous_dependent']['etasampling']['invQ'] 
+
+        keep = np.ones((np.shape(eta)[0]), dtype=np.int8)
+        # count=0
+        # count2=0
+
+        for k in range(np.shape(eta)[0]):
+            isbad = False 
+            for i in range(31):
+                value = 0
+                for j in range(6):
+                    value += Qinv[i,j]*eta[k,j]
+                # print('value',value)
+                if value > 1.1 or value < -0.1:
+                    # count+=1
+                    # keep[k]=0
+                    isbad = True
+            # if isbad == False:
+            #     # print(keep[k])
+            #     count2+=1
+            #     keep[k]= 1
+            # else:
+            #     keep[k]=0
+                # print(keep[k])
+            # if isbad == True:
+            #     # print(keep[k])
+            #     keep[k]=0
+            #     # print(keep[k])
+        # keep = np.array(keep)
+        true_false_array = [bool(x) for x in keep]
+        # print('count',count)
+        # print("count2",count2)
+
+        # returnoutput = output[true_false_array,:]
+        # print(np.shape(returnoutput))
+
+        
+        # np.savetxt('{}_keep.txt'.format(type),true_false_array)
+        return  output[true_false_array,:]
+                
+        
 
 
     def write(self,rnd,type,output):
+        # print('rnd',rnd,'type',type)
+        # print('output',np.shape(output))
+        # output = self.keep_good_output(output,type)
+        # print('output',np.shape(output))
+
+
+
+
         np.savetxt(self.OutputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt',output,fmt='%.12f',
                     header=self.header)
         
-        if os.path.isfile(self.OutputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt'):
-            allResults = np.loadtxt(self.OutputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt')
-            output = np.vstack((allResults,output))
-        np.savetxt(self.OutputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt',
-                    output,
-                    fmt='%.12f',
-                    header=self.header)
+        # if os.path.isfile(self.OutputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt'):
+        #     allResults = np.loadtxt(self.OutputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt')
+        #     output = np.vstack((allResults,output))
+        # np.savetxt(self.OutputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt',
+        #             output,
+        #             fmt='%.12f',
+        #             header=self.header)
 
 
         if os.path.isfile(self.OutputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt'):
@@ -177,7 +229,10 @@ class DataRecommender():
 
     def sample_external_data(self,rnd,path,value, name):
         columns = np.load(path,allow_pickle=True) 
+        # print('wells',columns)
         #EDIT - be more generic
+        
+
         columns = [columns[:,0:7],columns[:,7:8]]
         # columns = [columns[:,0:1],columns[:,1:7],columns[:,7:8]]
         input_local = self.find_new_points(columns,[10],[self.wells_points],[value[0],value[1]])
@@ -186,7 +241,37 @@ class DataRecommender():
 
 
     def sample_wells(self, rnd):
-        self.sample_external_data(rnd,self.wells,[.15,0.5],'sample_wells')
+        # self.sample_external_data(rnd,self.wells,[.15,0.5],'sample_wells')
+        etaW = np.zeros((6,7))
+        T = 300*np.ones((6,1))
+        # wells
+        # etaW[:,0] = 0.5
+        # for i in range(1,7):
+        #     etaW[2*i,i] = 0.425
+        #     etaW[2*i+1,i] = -0.425
+        # end members
+        etaW[0,0] = 0.075
+        etaW[1,0] = 0.925
+        etaW[2,0] = 0.0
+        etaW[3,0] = 1.0
+        etaW[4,0] = -0.05
+        etaW[5,0] = 1.05
+        # etaW[:,0] = np.linspace(0.1,0.9,14)
+
+        # define bias parameters
+        if rnd<100:
+            kappaW = etaW
+        else:
+            phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
+            muW = self.model.predict([etaW,T])[1]
+            kappaW = etaW + 0.5*muW/phi
+
+        N_w = self.wells_points #35 #50
+        kappaW = np.repeat(kappaW,N_w,axis=0)
+        kappaW[:,0]  += .01*(np.random.rand(*kappaW[:,0].shape)-0.5)
+        temp = 300*np.ones((6*N_w,1))
+        input_local = np.hstack((kappaW,temp))
+        self.write(rnd, 'sample_wells', input_local)
            
     def sample_vertices(self,rnd):
         etaB = np.zeros((2*(7-1),7))
@@ -196,14 +281,14 @@ class DataRecommender():
         for i in range(1,7):
             etaB[2*i-2,i] = 0.5
             etaB[2*i-1,i] = -0.5
-        if rnd==0:
+        if rnd<100:
             kappaB = etaB
         else:
             phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
-            muB = 0.01*self.model.predict([etaB,T])[1]
+            muB = self.model.predict([etaB,T])[1]
             kappaB = etaB + 0.5*muB/phi
 
-        N_w2 = 20 # Number of random points per vertex
+        N_w2 = self.vertice_points # Number of random points per vertex
         kappaW2 = np.zeros((2*(7-1)*N_w2,7))
         temp = 300*np.ones((2*(7-1)*N_w2,1))
         kappaW2[:,0] = kappaB[0,0]
@@ -281,8 +366,6 @@ class DataRecommender():
         output = np.ones((self.N_global_pts,1))
         outputorder = []
 
-        test_set = 'grid_search'
-
 
        
         for domain in self.sampling_dict['continuous_dependent'] :
@@ -321,7 +404,6 @@ class DataRecommender():
                                         N_boundary=N_b)
             output = np.hstack((output,eta[0:self.N_global_pts,:]))
             # self.type_of_input = np.hstack((self.type_of_input,np.zeros(1)))
-
         for domain in self.sampling_dict['continuous_independent']:
             # outputorder += self.sampling_dict['continuous_independent'][domain]['dim']*self.sampling_dict['continuous_independent'][domain]['values']
             range = self.sampling_dict['continuous_independent'][domain]
@@ -343,11 +425,11 @@ class DataRecommender():
         
     #EDIT - reorder these to match input_alias 
 
-
         # print(self.type_of_input)
         output = output[:,1:]
          ## EDIT - temporary 
         output = output[0.5-np.abs(output[:,0]-0.5) > np.abs(output[:,1]) ]
+
 
 
         self.write(rnd, test_set, output)       

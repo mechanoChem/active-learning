@@ -10,7 +10,7 @@ from pathlib import Path
 
 print('recreate model...')
 # path = os.path.dirname(os.getcwd())
-# print('path1',path)
+# print('path1',path)TransformsModule
 dirpath = os.path.dirname(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 # print(type(Path(dirpath)))
 # print(dirpath.resolve().parents[1])
@@ -27,7 +27,7 @@ dim = int(sys.argv[4])
 casm_version = sys.argv[5]
 activationinput =  sys.argv[6]
 path = sys.argv[7]
-# print('path',path)
+print('path',path)
 sys.path.append(path)
 # directory = os.path.abspath('../../active-learning/')
 # sys.path.insert(0,directory)

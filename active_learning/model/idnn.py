@@ -77,7 +77,7 @@ class IDNN(tf.keras.Model):
     def DNN(y, T):
       if self.transforms:
         y = Transform(self.transforms)(y)
-      y =tf.keras.layers.concatenate([y, T])
+      y =tf.keras.layers.concatenate([y,T])
       for layer in self.dnn_layers:
         y = layer(y)
       return y

@@ -12,6 +12,7 @@ from tensorflow.keras.models import load_model
 import json,os
 
 
+
 class IDNN_Model(Model):
     def __init__(self, dict):
         super().__init__()
@@ -24,8 +25,10 @@ class IDNN_Model(Model):
          self.hyperparameter] = self.dict.get_category_values('IDNN')
 
 
-        [self.input_alias,self.output_alias,self.config_path,self.outputFolder] = self.dict.get_individual_keys('Main',['input_alias','output_alias','dir_path','outputfolder'])
-        self.dim = np.size(self.input_alias)
+        [self.input_alias,self.output_alias,self.config_path,self.outputFolder,self.dim] = self.dict.get_individual_keys('Main',['input_alias','output_alias','dir_path','outputfolder','input_dim'])
+        # print('self.dim1',self.dim)
+        # self.dim = np.size(self.input_alias)
+        # print('self.dim2',self.dim)
         self.hidden_units = self.layers*[self.neurons]
         self.activation_list = []
         for i in range(len(self.hidden_units)):
@@ -34,6 +37,22 @@ class IDNN_Model(Model):
         for i in range(np.size(self.lossterms)):
             if self.lossterms[i] == 'None':
                 self.lossterms[i] = None
+        
+        # # print('dimensions',self.dim)
+        # hidden_layers = [163, 163,163]
+        # self.model = IDNN(8,
+        #     hidden_layers,
+        #     activation=['tanh','tanh','tanh'],
+        #     transforms=self.IDNN_transforms(),
+        #     final_bias=True,
+        #     unique_inputs=True)
+
+
+
+        # self.model.compile(loss=['mse','mse',None],
+        #     loss_weights=[0.01,1,None],
+        #     optimizer=keras.optimizers.RMSprop(lr=.001))
+
 
         self.model = IDNN(self.dim,
                 self.hidden_units,
@@ -51,9 +70,6 @@ class IDNN_Model(Model):
     def predict(self,data):
         data= self.scale_loaded_data(data)
         data = self.input_columns_to_training(data)
-        print('predict')
-        print('inputs',data)
-        # print('outputs',output)
         output = self.model.predict(data)
         return self.scale_output_back(output)
     
@@ -80,8 +96,8 @@ class IDNN_Model(Model):
             column_list_output.append(data[:,position:dim+position])
             position+=dim
 
-        print('array to column')
-        print(column_list_input)
+        # print('array to column')
+        # print(column_list_input)
 
         return column_list_input,column_list_output
             
@@ -108,12 +124,20 @@ class IDNN_Model(Model):
             for i in range(np.size(self.output_alias)):
                 derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[i])
                 output[:][i] = (output[:][i]+adjust[0])*adjust[1]
+                temp = (output[i]+adjust[0])*adjust[1] 
+                output[i] = temp
             return inputs,output
 
     def scale_output_back(self,output):
-        for i in range(np.size(self.output_alias)):
-            derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[i])
-            output[:][i] = (output[:][i]/adjust[1])-adjust[0]
+        derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[0])
+        # for i in range(np.size(self.output_alias)):
+        for i in range(3):
+            # print('output alias',self.output_alias[i])
+            # print('old output',output[i])
+            # derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[i])
+            temp = (output[i]/adjust[1])-adjust[0]
+            output[i] = temp
+            # print('new output',output[i])
         return output
 
     
@@ -131,32 +155,24 @@ class IDNN_Model(Model):
     def loss(self,rnd):
         inputs,output = self.load_data(rnd,singleRnd=True) #Params[0] returns input, Params[1] returns output
         inputs,output = self.input_columns_to_training(inputs,output)
-        print('loss method')
-        print('inputs',inputs)
-        print('outputs',output)
+        # print('loss method')
+        # print('inputs',inputs)
+        # print('outputs',output)
         return self.model.evaluate(inputs,output)
-        # input2 = []
-        # for i in input:
-        #     input2.append(i.T)
 
-        # input = input2
-
-        # output2 = []
-        # for i in output:
-        #     output2.append(i.T)
-
-        # output = output2
         
 
 
-    def load_model(self,rnd):
-        # readparams = open(self.outputFolder + 'training/model_{}/params'.format(rnd))
+    def load_trained_model(self,rnd):
+        # readparams = open(self.outputFolder + 'training/model_{}/params.json'.format(rnd))
         with open(self.outputFolder + 'training/model_{}/params.json'.format(rnd)) as json_file:
             params = json.load(json_file)
         # print('params:',params)
         [self.layers,self.neurons,self.activation_list,self.dropout,self.optimizer,self.learning,self.lr_decay,self.factor,self.patience,self.min_lr,self.epochs,self.batch_size] = params
         self.hidden_units = self.layers*[self.neurons]
-        load_model = IDNN(self.dim,
+        # print('hidden units',self.hidden_units)
+        # print('dim',self.dim)
+        loaded_model = IDNN(self.dim,
                 self.hidden_units,
                 activation = self.activation_list,
                 transforms=self.IDNN_transforms(),
@@ -164,12 +180,29 @@ class IDNN_Model(Model):
                 unique_inputs=True,
                 final_bias=True)
         self.opt = 'keras.optimizers.' + self.optimizer 
-        load_model.compile(loss=self.lossterms,
+        loaded_model.compile(loss=self.lossterms,
                         loss_weights=self.loss_weights,
                         optimizer=eval(self.opt)(learning_rate=self.learning))
+        # hidden_layers = [163, 163,163]
+        # loaded_model = IDNN(8,
+        #     hidden_layers,
+        #     activation=['tanh','tanh','tanh'],
+        #     transforms=self.IDNN_transforms(),
+        #     final_bias=True,
+        #     unique_inputs=True)
+
+
+
+        # loaded_model.compile(loss=['mse','mse',None],
+        #     loss_weights=[0.01,1,None],
+        #     optimizer=keras.optimizers.RMSprop(lr=.001))
         
-        load_model.load_weights(self.outputFolder+ 'training/model_{}/model'.format(rnd)).expect_partial()
-        self.model = load_model
+        
+        # loaded_model.load_weights('/expanse/lustre/scratch/jholber/temp_project/git/active-learning/tests/LCO/model_{}/model'.format(rnd)).expect_partial()
+
+        loaded_model.load_weights(self.outputFolder+ 'training/model_{}/model'.format(rnd)).expect_partial()
+        self.model = loaded_model
+        return loaded_model
 
     def parameter_int(self,keys):
         list = []
@@ -198,7 +231,7 @@ class IDNN_Model(Model):
         [layers,neurons,epochs,batch_size] = self.parameter_int(['layers','neurons','epochs','batch_size'])
         [dropout,learning,lr_decay,factor,patience,min_lr] = self.parameter_float(['dropout','learning','lr_decay','factor','patience','min_lr'])
 
-        inputs, output = self.load_data(rnd,singleRnd=True) 
+        inputs, output = self.load_data(rnd,singleRnd=False) 
         # if learning != None:
         #     learning_rate = np.power(10,(np.log10(learning[1]) - np.log10(learning[0]))*np.random.rand(1)[0] + np.log10(0.0001),dtype=np.float32)
         # else:
@@ -315,7 +348,9 @@ class IDNN_Model(Model):
 
     
     def train(self,rnd):
-        inputs, output = self.load_data(rnd,singleRnd=True) 
+        inputs, output = self.load_data(rnd,singleRnd=False) 
+        # print('Reloading rnd 0')
+        # inputs, output = self.load_data(0,singleRnd=True) 
         self.model,_ = self.surrogate_training(rnd,self.model,inputs,output)
     
 
@@ -342,6 +377,8 @@ class IDNN_Model(Model):
                 k+=1
         
         if unique_inputs:
+            # input_zeros = np.zeros(np.shape(input_new))
+            # inputs = [input_zeros,input_new,input_new,input_non_derivative]
             inputs = [input_new,input_new,input_new,input_non_derivative]
         else:
             inputs = [input_new,input_non_derivative]
@@ -379,8 +416,8 @@ class IDNN_Model(Model):
             sample_weight = sample_weight[inds]
 
 
-        # train
-        lr_decay = self.lr_decay**rnd
+        # trains
+        lr_decay = self.lr_decay#**rnd
         model.compile(loss=self.lossterms,
                         loss_weights=self.loss_weights,
                         optimizer=eval(self.opt)(learning_rate=learning_rate*lr_decay))
@@ -400,9 +437,19 @@ class IDNN_Model(Model):
         # print(input)
         # print(output)
 
-        print('surrogate training')
-        print('inputs',inputs)
-        print('outputs',output)
+        # print('surrogate training')
+        # print('inputs',inputs)
+        # print('outputs',output)
+
+        # self.model.compile(loss=['mse','mse',None],
+        #     loss_weights=[0.01,1,None],
+        #     optimizer=keras.optimizers.RMSprop(lr=.001))
+
+        # history= model.fit(inputs,output,
+        #  validation_split=.25,
+        #  epochs=100,
+        #  batch_size=100,
+        #  callbacks=callbackslist)
 
         
         if self.WeightRecent == 'Yes':
@@ -427,7 +474,37 @@ class IDNN_Model(Model):
     def IDNN_transforms(self):
 
         # sys.path.append(self.config_path)
-        sys.path.append(self.config_path+self.transform_path)
-        from TransformsModule import transforms 
+        # sys.path.append(self.config_path+self.transform_path)
+        # from TransformsModule import transforms 
+        def transforms(x):
 
-        # return transforms
+            h0 = x[:,0]
+            h1 = 2./3.*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2 +
+                        x[:,4]**2 + x[:,5]**2 + x[:,6]**2)
+            h2 = 8./3.*(x[:,1]**4 + x[:,2]**4 + x[:,3]**4 +
+                        x[:,4]**4 + x[:,5]**4 + x[:,6]**4)
+            h3 = 4./3.*((x[:,1]**2 + x[:,2]**2)*
+                        (x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) +
+                        (x[:,3]**2 + x[:,6]**2)*(x[:,4]**2 + x[:,5]**2))
+            h4 = 16./3.*(x[:,1]**2*x[:,2]**2 + x[:,3]**2*x[:,6]**2 + x[:,4]**2*x[:,5]**2)
+            h5 = 32./3.*(x[:,1]**6 + x[:,2]**6 + x[:,3]**6 +
+                        x[:,4]**6 + x[:,5]**6 + x[:,6]**6)
+            h6 = 8./3.*((x[:,1]**4 + x[:,2]**4)*
+                        (x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) +
+                        (x[:,3]**4 + x[:,6]**4)*(x[:,4]**2 + x[:,5]**2) + 
+                        (x[:,1]**2 + x[:,2]**2)*
+                        (x[:,3]**4 + x[:,4]**4 + x[:,5]**4 + x[:,6]**4) +
+                        (x[:,3]**2 + x[:,6]**2)*(x[:,4]**4 + x[:,5]**4))
+            h7 = 16./3.*(x[:,1]**2*x[:,2]**2*(x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) + 
+                        x[:,3]**2*x[:,6]**2*(x[:,1]**2 + x[:,2]**2 + x[:,4]**2 + x[:,5]**2) + 
+                        x[:,4]**2*x[:,5]**2*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2 + x[:,6]**2))
+            h8 = 32./3.*(x[:,1]**4*x[:,2]**2 + x[:,3]**4*x[:,6]**2 + x[:,4]**4*x[:,5]**2 +
+                        x[:,1]**2*x[:,2]**4 + x[:,3]**2*x[:,6]**4 + x[:,4]**2*x[:,5]**4)
+            h9 = 8.*(x[:,1]**2 + x[:,2]**2)*(x[:,3]**2 + x[:,6]**2)*(x[:,4]**2 + x[:,5]**2)
+            h10 = 64./5.*((x[:,1]**2 - x[:,2]**2)*(x[:,3]*x[:,5] + x[:,4]*x[:,6])*(x[:,3]*x[:,4] - x[:,5]*x[:,6]) +
+                        x[:,1]*x[:,2]*(x[:,3]**2 - x[:,6]**2)*(x[:,4]**2 - x[:,5]**2))
+            h11 = 64.*np.sqrt(5)*x[:,1]*x[:,2]*x[:,3]*x[:,4]*x[:,5]*x[:,6]
+
+            return [h0,h1,h2,h3,h4,h5,h6,h7,h8,h9,h10,h11]
+
+        return transforms

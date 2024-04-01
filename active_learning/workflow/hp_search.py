@@ -11,7 +11,7 @@ from importlib import import_module
 from time import sleep
 import sys
 
-def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, walltime, memory,outputfolder):
+def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, walltime, memory,outputfolder,i):
     """ A function to submit the job scripts for a each set of hyperparameters
     in the hyperparameter search in the active learning workflow.
 
@@ -31,7 +31,7 @@ def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, wall
 
     specs = {'account': account,
              'walltime': walltime,
-             'job_name': 'optimizeHParameters',
+             'job_name': 'optimizeHParameters_{}'.format(i),
              'total_memory': memory,
              'queue': 'shared'}
     
@@ -82,13 +82,22 @@ def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account,
     """
     
     # Submit the training sessions with various hyperparameters
-    submitHPSearch(N_sets,rnd,commands,training_func, job_manager, account, walltime, memory,outputfolder)
+    i=0
+    if job_manager != 'PC':
+        from active_learning.data_collector.slurm_manager import numCurrentJobs, submitJob
+        while numCurrentJobs('optimizeHParameters_{}'.format(i)) > 0:
+            i+=1
 
+
+    submitHPSearch(N_sets,rnd,commands,training_func, job_manager, account, walltime, memory,outputfolder,i)
+
+    print('i',i)
+    print(numCurrentJobs('optimizeHParameters_{}'.format(i)) > 0)
     # Wait for jobs to finish
     if job_manager != 'PC':
         from active_learning.data_collector.slurm_manager import numCurrentJobs, submitJob
         sleep(20)
-        while ( numCurrentJobs('optimizeHParameters') > 0):
+        while ( numCurrentJobs('optimizeHParameters_{}'.format(i)) > 0):
             sleep(15)
 
     # Compare n_sets of random hyperparameters; choose the set that gives the lowest l2norm

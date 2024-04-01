@@ -33,7 +33,6 @@ class CASM_Sampling(Sampling):
         
         self.sampling_dict = self.dict.get_category('Sampling')
 
-        # print('input dim',self.Input_dim)
 
 
 
@@ -102,24 +101,11 @@ class CASM_Sampling(Sampling):
             np.savetxt(self.OutputFolder + 'data/data_sampled/CASMallResults{}.txt'.format(rnd),
                     allResults,
                     header=header)
-        
-
-        eta = eta
-        mu = mu
-        T = T
 
 
 
         dataOut = np.hstack((eta,T,mu))
-        # output =mu
-        
-        # print(np.shape(input))
-        # print(np.shape(output))
 
-        # dataOut = [input,output]
-
-        # dataOut = np.array([input,output], dtype=object)
-        print('dataout',dataOut)
 
         np.save(self.OutputFolder + 'data/data_sampled/results{}'.format(rnd),
         dataOut)
@@ -128,25 +114,12 @@ class CASM_Sampling(Sampling):
                     dataOut)
         else:
             allResults =  np.load(self.OutputFolder + 'data/data_sampled/results{}.npy'.format(rnd-1),allow_pickle=True)
-            print('allresults',allResults)
             allResults = np.vstack((allResults,dataOut))
-            # for i in range(2):
-            #     print('CASM sampling line 130')
-            #     print(np.shape(allResults[i]))
-            #     print(np.shape(dataOut[i]))
-            #     allResults[i] = np.concatenate((allResults[i],dataOut[i]),axis=-1)
-            #     # print(np.shape(allResults[i]))
-            # # print('CASM sampling line 117')
-
-            # for j in range(3):
-            #     # print(np.shape(allResults[2][j]))
-            #     # print(np.shape(dataOut[2][j]))
-            #     allResults[2][j] = np.concatenate((allResults[2][j],dataOut[2][j]),axis=-1)
-            #     # print(np.shape(allResults[2][j]))
-
 
             np.save(self.OutputFolder + 'data/data_sampled/allResults{}'.format(rnd),
                     allResults)
+        
+        np.savetxt(self.OutputFolder + 'data/data_sampled/results{}.txt'.format(rnd),dataOut)
         
             
 
@@ -164,16 +137,20 @@ class CASM_Sampling(Sampling):
         data_recommended = self.read(rnd) 
         eta = data_recommended[:,:self.Input_dim-1]
         T = data_recommended[:,self.Input_dim-1:self.Input_dim]
-        if rnd==0:
+        if rnd<100:
             if self.Initial_mu == 'Ideal':
                 mu_test = self.ideal(eta,T)
             else:
                 mu_test = np.zeros(np.shape(eta))
         else:
+            # mu_test = self.model.predict([eta[:,0:1],eta[:,1:2],eta[:,2:], T])[1]
             mu_test = self.model.predict([eta,T])[1]
 
-
+        # print('eta', np.shape(eta))
+        # print('mu_test', np.shape(mu_test))
+        # print('phi',np.shape(self.phi))
         kappa = eta + 0.5*mu_test/self.phi
+        # np.savetxt('kappa.txt',kappas)
 
         n = len(kappa)
         phi = np.array(n*[self.phi])

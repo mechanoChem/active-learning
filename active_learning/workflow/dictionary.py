@@ -95,7 +95,9 @@ class Dictionary():
     def verifypath(self,inputs):
         for i in range(np.shape(inputs)[0]):
             if not os.path.isabs(self.dict[inputs[i][0]][inputs[i][1]]):
+                print("file",inputs[i][0],inputs[i][1] )
                 pathlocation = os.path.join( self.dict['Main']['dir_path'], self.dict[inputs[i][0]][inputs[i][1]])
+                print("pathlocation",pathlocation)
                 assert(os.path.exists(pathlocation))
                 self.dict[inputs[i][0]][inputs[i][1]] = pathlocation
 
@@ -219,6 +221,8 @@ class Dictionary():
             else:
                 self.set_as_float_array([[input,'domain']])
                 self.dict['Sampling'][self.dict[input]['domain_type']][input] = self.dict[input]['domain']
+            # print('input',input)
+            # print('dimensions',self.dict[input]['dimensions'])
             input_dim +=  self.dict[input]['dimensions']
             self.set_as_float_array([[input,'adjust']])
             self.set_as_true_false([[input,'derivative_dim']] )
@@ -267,7 +271,6 @@ class Dictionary():
         k = 0
         for i in range(np.size(self.input_alias)):
             [domaintype] = self.get_individual_keys(self.input_alias[i],['domain_type'])
-            # print('domaintype',domaintype)
             if domaintype == 'continuous_dependent':
                 self.type_of_input = np.hstack((self.type_of_input,np.zeros(1)))
             if domaintype == 'continuous_independent':
@@ -285,8 +288,7 @@ class Dictionary():
         self.dict['Ordering']['type_of_input']=self.type_of_input 
         self.dict['Ordering']['model_order']=self.model_order
 
-        # print('dictionary Orderingellaneous')
-        # print(self.dict['Ordering'])
+
         # for x in self.sampling_dict['continuous_dependent']:
         #     self.type_of_input = np.hstack((self.type_of_input,np.zeros(1)))
         # for y in self.sampling_dict['continuous_independent']:

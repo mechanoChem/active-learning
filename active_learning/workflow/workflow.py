@@ -53,14 +53,12 @@ class Workflow():
         else:
             self.step = 'Explorative'
         self.construct_model()
-        print('line 56')
         if self.restart==True:
             self.read_restart()
             
         if self.Data_Generation:
             if self.Data_Generation_Source=='CASM' or self.Data_Generation_Source=='CASM_Surrogate':
                 self.sampling = CASM_Sampling(self.model, self.dict)
-        print('line 63')
         self.recommender = DataRecommender(self.model,self.dict)
         self.recommender.construct_input_types()
 
@@ -182,6 +180,10 @@ class Workflow():
     def train(self):
         self.model.train(self.rnd)
         self.model.save_model(self.rnd)
+        # self.model.train(2)
+        # # self.model.save_model(0)
+        # self.model.train(2)
+        # self.model.save_model(2)
     
 
 
@@ -190,9 +192,12 @@ class Workflow():
 
 
     def main_workflow(self):
+
+        # self.train()
+
         # self.model = self.hyperparameter_search(self.rnd)
 
-        #If there is no pre-existing data : we first have to do explorative predictions
+        # If there is no pre-existing data : we first have to do explorative predictions
         # self.hyperparameter_search(2) 
         # self.better_than_prev(1)
         if self.step == 'Explorative':
@@ -244,6 +249,9 @@ class Workflow():
             if self.rnd == 1 or not self.better_than_prev(self.rnd-1):
                 print('Perform hyperparameter search...')
                 self.hyperparameter_search(self.rnd)
+                # print('Train surrogate model, round ',self.rnd,'...')
+                # self.train()
+
             else:
                 print('Train surrogate model, round ',self.rnd,'...')
                 self.train()
