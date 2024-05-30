@@ -8,11 +8,46 @@ from active_learning.workflow.dictionary import Dictionary
 from active_learning.workflow.hp_search import hyperparameterSearch
 from active_learning.data_recommended.DataRecommender import DataRecommender
 from active_learning.data_collector.CASM_Sampling import CASM_Sampling
-
+from active_learning.workflow.make_graph import graph
 
 class Workflow():
 
     def __init__(self,input_path):
+        # self.input_path = input_path
+        # self.dict = Dictionary(input_path)
+        # [self.Model_type,    
+        #  self.Data_Generation, self.Data_Generation_Source, 
+        #  self.restart, self.Input_data, self.Input_alias, 
+        #  self.Output_alias,self.Iterations, self.OutputFolder, 
+        #  self.seed,self.input_dim,self.output_dim,self.derivative_dim,self.config_path] = self.dict.get_category_values('Main')
+        
+        
+        # [self.N_global_pts, self.sample_known_wells,self.wells,
+        #  self.wells_points,self.sample_known_vertices,self.vertices, 
+        #  self.vertice_points] = self.dict.get_category_values('Explore_Parameters')
+
+        # [self.sample_hessian,self.hessian_repeat, self.hessian_repeat_points,self.sample_high_error,
+        # self.high_error_repeat, self.high_error_repeat_points, self.find_wells, self.wells_repeat,self.wells_repeat_points] = self.dict.get_category_values('Exploit_Parameters')
+        # self.construct_model()
+        # self.rnd=0
+        # print('Train surrogate model, round ',self.rnd,'...')
+        # self.train()
+        # for i in range(1,6):
+        #     self.rnd=i
+
+
+        #     if self.rnd == 1 or not self.better_than_prev(self.rnd-1):
+        #         print('Perform hyperparameter search...')
+        #         self.hyperparameter_search(self.rnd)
+        #         # print('Train surrogate model, round ',self.rnd,'...')
+        #         # self.train()
+
+        #     else:
+        #         print('Train surrogate model, round ',self.rnd,'...')
+        #         self.train()
+
+        
+
         self.input_path = input_path
         self.dict = Dictionary(input_path)
         # print(self.dict.get_category_values('Overview'))
@@ -33,6 +68,8 @@ class Workflow():
             self.rnd=0
             if  os.path.exists(self.OutputFolder + 'training'):
                 shutil.rmtree(self.OutputFolder +'training')
+            if  os.path.exists(self.OutputFolder + 'graphs'):
+                shutil.rmtree(self.OutputFolder +'graphs')
             if  os.path.exists(self.OutputFolder +'data/data_recommended'):
                 shutil.rmtree(self.OutputFolder +'data/data_recommended')
             if  os.path.exists(self.OutputFolder +'data/data_sampled'):
@@ -44,9 +81,16 @@ class Workflow():
             if not os.path.exists(self.OutputFolder+'data'):
                 os.mkdir(self.OutputFolder+'data')
             os.mkdir(self.OutputFolder +'training')
+            os.mkdir(self.OutputFolder +'graphs')
             os.mkdir(self.OutputFolder +'data/data_recommended')
             os.mkdir(self.OutputFolder +'data/data_sampled')
             os.mkdir(self.OutputFolder +'data/outputFiles')
+            
+        # self.rnd=0
+        # self.construct_model()
+        # self.sampling = CASM_Sampling(self.model, self.dict)
+        # self.sample_data(self.rnd)
+        
         if self.Input_data:
             self.step = 'Model_training'
             self.handle_input_data(self.Input_data)
@@ -74,7 +118,7 @@ class Workflow():
     def read_restart(self):
         #  self.dict_restart = Dictionary(input_path)
          [self.rnd, self.step] = self.dict.get_category_values('Restart')
-         self.model.load_trained_model(self.rnd-1)
+        #  self.model.load_trained_model(self.rnd-1)
 
     # def save_restart(self):
     #     params = [self.rnd, self.step]
@@ -120,6 +164,7 @@ class Workflow():
             self.recommender.hessian(self.rnd)
         if self.find_wells:
             self.recommender.find_wells(self.rnd)
+        self.recommender.lowest_free_energy_curve(self.rnd)
 
 
 
@@ -207,12 +252,17 @@ class Workflow():
                 self.step = 'Sampling'
             else:
                 self.step = 'Complete'
+        
+        # print(self.step)
+        # self.step='Sampling'
 
         if self.step == 'Sampling':
             print('Data sampling, round ',self.rnd,'...')
             self.sample_data(self.rnd)
             self.step = 'Model_training'
 
+
+        # self.step ='Model_training'
         
 
         if self.step == 'Model_training':
@@ -221,8 +271,12 @@ class Workflow():
             if self.Data_Generation==False:
                 self.model = self.hyperparameter_search(self.rnd)
                 self.step = 'Complete'
+                # self.rnd += 1
                 print('Exploitative Sampling, round ',self.rnd,'...')
                 self.exploit(self.model)
+            elif self.rnd == 1:
+                self.model = self.hyperparameter_search(self.rnd)
+            # graph(self.rnd, self.model,self.dict)
         
             self.rnd += 1
 
@@ -244,14 +298,16 @@ class Workflow():
 
             
             
-            #next Training
+            # next Training
             self.step == 'Model_training'
             if self.rnd == 1 or not self.better_than_prev(self.rnd-1):
-                print('Perform hyperparameter search...')
-                self.hyperparameter_search(self.rnd)
                 # print('Train surrogate model, round ',self.rnd,'...')
                 # self.train()
+                print('Perform hyperparameter search...')
+                self.hyperparameter_search(self.rnd)
 
             else:
                 print('Train surrogate model, round ',self.rnd,'...')
                 self.train()
+
+            # graph(self.rnd, self.mzdel,self.dict)

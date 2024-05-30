@@ -30,10 +30,10 @@ def checkPending(name):
 def submitJob(command,specs={},is_dnsml=False):
 
     # Default values for LSF job script
-    default = {'wall_time':'8:00:00',
+    default = {'wall_time':'24:00:00',
                'nodes':1,
                'ntasks-per-node':1,
-               'total_memory':'1G',
+               'total_memory':'10G',
                'job_name':'default',
                'output_folder':'output',
                'queue':'shared'}

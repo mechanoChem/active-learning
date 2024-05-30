@@ -74,6 +74,7 @@ class Dictionary():
             if self.dict[inputs[i][0]][inputs[i][1]] != None:
                 self.dict[inputs[i][0]][inputs[i][1]] =[float(p) for p in self.dict[inputs[i][0]][inputs[i][1]].split(',')]
             elif not nullallowed:
+                print('self.dict[inputs[i][0]][inputs[i][1]]',self.dict[inputs[i][0]][inputs[i][1]])
                 raise Exception('Input',inputs[i],'is null')
     
     def set_as_str_array(self,inputs,nullallowed=False):
@@ -134,6 +135,7 @@ class Dictionary():
                 assert('initial_mu' in self.dict['CASM'])
                 if self.dict["CASM"]["casm_version"] == '0.3.X':
                     self.dict["CASM"]["casm_version"] = 'LCO'
+                print(self.dict["CASM"]["phi"])
                 float_array_inputs += [['CASM','phi']]
                 int_inputs += [['CASM','n_jobs']]
             if self.dict['Main']['data_generation_source'] == 'CASM_Surrogate':
@@ -245,12 +247,21 @@ class Dictionary():
                 
 
         for domain in self.dict['Sampling']['continuous_dependent']:
+            rows_to_keep = [0, 29, 30, 31]
             Q = np.loadtxt(self.dict['Sampling']['continuous_dependent'][domain]['filepath'])
-            invQ = np.linalg.inv(Q)[:,:self.dict['Sampling']['continuous_dependent'][domain]['dim']]
-            self.dict['Sampling']['continuous_dependent'][domain]['Q'] = Q[:self.dict['Sampling']['continuous_dependent'][domain]['dim']]
+            invQ = np.linalg.inv(Q)[:,rows_to_keep]
+            self.dict['Sampling']['continuous_dependent'][domain]['Q'] = Q[:,rows_to_keep]
             self.dict['Sampling']['continuous_dependent'][domain]['n_planes'] = np.vstack((invQ,-invQ))
             self.dict['Sampling']['continuous_dependent'][domain]['c_planes']= np.hstack((np.ones(invQ.shape[0]),np.zeros(invQ.shape[0])))
             self.dict['Sampling']['continuous_dependent'][domain]['invQ']= invQ
+
+            print(np.shape(self.dict['Sampling']['continuous_dependent'][domain]['Q'] ))
+
+            # print('Q from file', np.shape(Q))
+            # print('invQ',np.shape(invQ))
+            # print('final Q', np.shape(self.dict['Sampling']['continuous_dependent'][domain]['Q']))
+            # print("n_planes",self.dict['Sampling']['continuous_dependent'][domain]['n_planes'] )
+            # print("c_planes",self.dict['Sampling']['continuous_dependent'][domain]['c_planes'] )
         
 
         # input_alias - the order that data appears in input/sampled_data

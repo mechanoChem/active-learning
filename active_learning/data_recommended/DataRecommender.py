@@ -39,11 +39,12 @@ class DataRecommender():
          self.output_dim,self.config_path] = self.dict.get_category_values('Main')
 
         self.sampling_dict = self.dict.get_category('Sampling')
+        self.Qinv = self.sampling_dict['continuous_dependent']['etasampling']['invQ']
 
     def keep_good_output(self,output,type):
         eta = output[:,0:7]
         # self.sampling_dict['continuous_dependent'][domain]['type']
-        Qinv = self.sampling_dict['continuous_dependent']['etasampling']['invQ'] 
+        # Qinv = self.sampling_dict['continuous_dependent']['etasampling']['invQ'] 
 
         keep = np.ones((np.shape(eta)[0]), dtype=np.int8)
         # count=0
@@ -54,7 +55,7 @@ class DataRecommender():
             for i in range(31):
                 value = 0
                 for j in range(6):
-                    value += Qinv[i,j]*eta[k,j]
+                    value += self.Qinv[i,j]*eta[k,j]
                 # print('value',value)
                 if value > 1.1 or value < -0.1:
                     # count+=1
@@ -242,20 +243,16 @@ class DataRecommender():
 
     def sample_wells(self, rnd):
         # self.sample_external_data(rnd,self.wells,[.15,0.5],'sample_wells')
-        etaW = np.zeros((6,7))
-        T = 300*np.ones((6,1))
+        etaW = np.zeros((8,4))
+        T = 260*np.ones((8,1))
         # wells
-        # etaW[:,0] = 0.5
-        # for i in range(1,7):
-        #     etaW[2*i,i] = 0.425
-        #     etaW[2*i+1,i] = -0.425
+        etaW[:,0] = 0.5
+        for i in range(1,4):
+            etaW[2*i,i] = 0.425
+            etaW[2*i+1,i] = -0.425
         # end members
-        etaW[0,0] = 0.075
-        etaW[1,0] = 0.925
-        etaW[2,0] = 0.0
-        etaW[3,0] = 1.0
-        etaW[4,0] = -0.05
-        etaW[5,0] = 1.05
+        etaW[0,0] = .075
+        etaW[1,0] = .925
         # etaW[:,0] = np.linspace(0.1,0.9,14)
 
         # define bias parameters
@@ -268,17 +265,17 @@ class DataRecommender():
 
         N_w = self.wells_points #35 #50
         kappaW = np.repeat(kappaW,N_w,axis=0)
-        kappaW[:,0]  += .01*(np.random.rand(*kappaW[:,0].shape)-0.5)
-        temp = 300*np.ones((6*N_w,1))
+        kappaW  += .1*(np.random.rand(*kappaW.shape)-0.5)
+        temp = 260*np.ones((8*N_w,1))
         input_local = np.hstack((kappaW,temp))
         self.write(rnd, 'sample_wells', input_local)
            
     def sample_vertices(self,rnd):
-        etaB = np.zeros((2*(7-1),7))
-        T = 300*np.ones((2*(7-1),1))
+        etaB = np.zeros((2*(4-1),4))
+        T = 260*np.ones((2*(4-1),1))
         # wells
         etaB[:,0] = 0.5
-        for i in range(1,7):
+        for i in range(1,4):
             etaB[2*i-2,i] = 0.5
             etaB[2*i-1,i] = -0.5
         if rnd<100:
@@ -289,11 +286,11 @@ class DataRecommender():
             kappaB = etaB + 0.5*muB/phi
 
         N_w2 = self.vertice_points # Number of random points per vertex
-        kappaW2 = np.zeros((2*(7-1)*N_w2,7))
-        temp = 300*np.ones((2*(7-1)*N_w2,1))
+        kappaW2 = np.zeros((2*(4-1)*N_w2,4))
+        temp = 260*np.ones((2*(4-1)*N_w2,1))
         kappaW2[:,0] = kappaB[0,0]
         kappaW2 += 0.05*(np.random.rand(*kappaW2.shape)-0.5) # Small random perterbation
-        for i in range(1,7):
+        for i in range(1,4):
             for j in range(2*N_w2):
                 kappaW2[2*(i-1)*N_w2 + j,i] = np.random.rand()*(kappaB[2*i-2,i] - kappaB[2*i-1,i]) + kappaB[2*i-1,i] # Random between positive and negative well
         input_local = np.hstack((kappaW2,temp))
@@ -454,7 +451,7 @@ class DataRecommender():
         eigen = np.zeros(mu.shape)
         eigenvector = np.zeros(hessian.shape)
 
-        print(np.shape(eigen))
+        # print(np.shape(eigen))
 
         for i in range(len(hessian)):
             eigen[i,:], eigenvector[i,:,:] = LA.eig(hessian[i,:,:])
@@ -488,12 +485,12 @@ class DataRecommender():
         # print('Loading data...')
         self.inputs,self.output = self.load_data(rnd-1)
         print('Predicting...')
-        print('inputs')
         self.output_pred = self.model.predict(self.inputs.copy())
     
 
 
     def high_error(self,rnd):
+        
         
 
         print('Finding high pointwise error...')
@@ -504,7 +501,8 @@ class DataRecommender():
 
         input_local = []
 
-        # print('inputs',inputs)
+        print('inputs',inputs)
+        print('outputs',inputs)
 
         for i in range(np.size(self.output_alias)):
             derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[i])
@@ -519,7 +517,7 @@ class DataRecommender():
                 higherror =  column[np.argsort(error)[::-1],:]
                 inputs[k]=higherror
             
-            print('high error og points order',inputs)
+            # print('high error og points order',inputs)
             input_local = self.find_new_points(inputs, self.high_error_repeat_points, self.high_error_repeat,[.004,0.5])
    
         input_local = self.combine_list(input_local)
@@ -528,4 +526,71 @@ class DataRecommender():
         self.write(rnd, 'high_error', input_local)
 
         return input_local
+    
+    def isindomain(self,eta):
+
+        output = []
+        domain = True
+        for eta_row in eta: 
+            domain=True
+            for row in self.Qinv:
+                total = np.sum(row*eta_row)
+                if (total<0):
+                    domain=False
+                    break
+                if (total>1):
+                    domain=False
+                    break
+            output.append(domain)
+        return output
+
+    def lowest_free_energy_curve(self,rnd):
+        n = [100,100,50,1]
+
+        # eta0 = np.linspace(0.45,0.55, n[0])
+        # eta1 = np.linspace(0,0.5,n[1])
+        # eta2 = np.linspace(0,0.25,n[2])
+        # eta3 = np.linspace(0,0.16,n[3])
+        
+        # print('created etas')
+        # eta = np.meshgrid(eta0,eta1,eta2,eta3)
+        # print('created meshgrid')
+        # etainput = np.array([eta[i].flatten()  for i in range(4)]).T
+
+        # etainput = etainput[etainput[:,1]>etainput[:,2]]
+        # eta = etainput[self.isindomain(etainput)]
+
+        # I = self.isindomain(etainput[:,0:4])
+        # print('I',I)
+        # eta = etainput[I,:]
+
+        # np.savetxt('eta_curve_2.txt',eta)
+
+
+        eta=np.loadtxt('/expanse/lustre/scratch/jholber/temp_project/git/row/active-learning/tests/LCO_row/eta_curve_2.txt')
+        T= 260*np.ones((np.shape(eta)[0],1))
+        pred_new = self.model.predict([eta,T])
+        free_new = pred_new[0]
+        mu_new = pred_new[1]
+
+        data = np.hstack((eta,mu_new,free_new))
+
+        data ={'x': data[:,0],'eta1': data[:,1],'eta2': data[:,2],'eta3': data[:,3],'free': free_new[:,0]}
+
+
+        df = pd.DataFrame(data)
+
+        # Group by x1 and find the indices of the minimum y values within each group
+        idx = df.groupby('x')['free'].idxmin()
+
+        # Get the corresponding x2, x3, and y values for the indices
+        result = df.loc[idx, ['x', 'eta1', 'eta2', 'free']]
+        # result.to_csv('lowest_free_energies_rnd{}.txt'.format(self.rnd), sep='\t', index=False)
+        
+        # kappa = np.repeat(eta,2,axis=0)
+        # kappa[:,0]  += .1*(np.random.rand(*kappa[:,0].shape)-0.5)
+        # kappa = eta
+        temp = 260*np.ones((np.shape(result)[0],1))
+        input_local = np.hstack((result,temp))
+        self.write(rnd, 'lowest_free_energy', input_local)
         
