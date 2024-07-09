@@ -18,20 +18,28 @@ class CASM_Sampling(Sampling):
         [self.data_gen_source] = self.dict.get_individual_keys('Main',['data_generation_source'])
 
         if self.data_gen_source == 'CASM':
-            [self.dir, self.version, self.Initial_mu,self.phi,self.N_jobs] = self.dict.get_category_values('CASM')
+            [self.dir, self.version, self.Initial_mu,self.phi,self.N_jobs,self.relevent_indices] = self.dict.get_category_values('CASM')
         else:
-            [self.dir, self.version, self.Initial_mu,self.phi,self.N_jobs,self.Hidden_Layers, self.Input_Shape, self.dim, self.CASM_version, self.data_gen_activation, self.folder] = self.dict.get_category_values('CASM_Surrogate')
-            # [self.Hidden_Layers, self.Input_Shape, self.dim, self.CASM_version, self.data_gen_activation, self.folder]=self.dict.get_category_values('CASM Surrogate')
+            [self.dir, self.version, self.Initial_mu,self.phi,self.N_jobs,self.Hidden_Layers, self.Input_Shape, self.dim, self.CASM_version, self.data_gen_activation, self.folder,self.relevent_indices] = self.dict.get_category_values('CASM_Surrogate')
 
-        # print('hidden layers',self.Hidden_Layers)
         [self.Model_type,    
          self.Data_Generation, self.Data_Generation_Source, self.restart,
          self.input_data,self.input_alias,self.output_alias, self.iterations,
-         self.OutputFolder, self.seed, self.Input_dim, self.derivative_dim, self.output_dim,_] = self.dict.get_category_values('Main')
+         self.OutputFolder, self.seed, self.Input_dim, self.derivative_dim, self.output_dim,_,self.T,self.graph,_,_,_] = self.dict.get_category_values('Main')
         
         [self.job_manager,self.account,self.walltime,self.mem] = self.dict.get_category_values('Sampling_Job_Manager')
         
         self.sampling_dict = self.dict.get_category('Sampling')
+
+        [self.layers,self.neurons,self.activation,self.dropout,self.transform_path,
+         self.lossterms,self.loss_weights,self.optimizer,self.learning,self.lr_decay,
+         self.factor, self.patience,self.min_lr,self.EarlyStopping,self.epochs,
+         self.batch_size,self.WeightRecent,self.validation_split,
+         self.hyperparameter] = self.dict.get_category_values('IDNN')
+
+        for i in range(np.size(self.lossterms)):
+            if self.lossterms[i] == 'None':
+                self.lossterms[i] = None
 
 
 
@@ -47,11 +55,14 @@ class CASM_Sampling(Sampling):
         return np.genfromtxt(self.OutputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt',dtype=np.float32)
 
     def write(self,rnd):
-        rows_to_keep = [0, 29, 30, 31]
+        # rows_to_keep = [0, 29, 30, 31]
+        # rows_to_keep = [0,1,2,3,4,5,6]
+        number = len(self.relevent_indices)
         kappa = []
         eta = []
         phi = []
         T = []
+        mu = []
         # if not os.path.exists(f'round_{rnd}'):
         dirname = self.OutputFolder + 'data/data_sampled/round_'+str(rnd)
         # shutil.rmtree(dirname,ignore_errors=True)
@@ -68,23 +79,25 @@ class CASM_Sampling(Sampling):
                             kappa += np.array([data['kappa_{}'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
                             eta += np.array([data['<op_val({})>'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
                             phi += np.array([data['phi_{}'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
-                        elif self.version == 'LCO':
+                        elif self.version == 'LCO' or self.data_gen_source=='CASM_Surrogate':
                             kappa += np.array([data['Bias_kappa({})'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
                             eta += np.array([data['<order_param({})>'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
                             phi += np.array([data['Bias_phi({})'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
+                            mu += np.array([data['<mu({})>'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
+                            T += np.array([data['T']]).T.tolist()
                         elif self.version == 'row':    
                             for i in range(len(data['<comp(a)>'])):
                                 with open(self.OutputFolder + 'data/data_sampled/'+dir+ f'/conditions.{i}/conditions.json', 'r') as conditions_file:
                                     conditions_data = json.load(conditions_file)
                                     kappa = conditions_data['order_parameter_quad_pot_target']
                                     phi = conditions_data['order_parameter_quad_pot_vector']
-                                    phi_subset=4*[0]
-                                    kappa_subset=4*[0]
-                                    mu = 4*[0]
-                                    eta = 4*[0]
+                                    phi_subset=number*[0]
+                                    kappa_subset=number*[0]
+                                    mu = number*[0]
+                                    eta = number*[0]
                                     # eta0 = c
                                     k=0
-                                    for j in rows_to_keep:
+                                    for j in self.relevent_indices:
                                         eta[k] = data['<order_parameter({})>'.format(j)][i]
                                         mu[k] =(-2*phi[j]*(eta[k]-kappa[j]))*32
                                         phi_subset[k] = phi[j]*32*32
@@ -103,21 +116,43 @@ class CASM_Sampling(Sampling):
 
                     shutil.move(self.OutputFolder + 'data/data_sampled/'+dir,dirname)
 
-        kappa = np.array([d['kappa'] for d in data_points])
-        eta = np.array([d['eta'] for d in data_points])
-        phi = np.array([d['phi'] for d in data_points])
-        T = np.array([d['T'] for d in data_points])
-        mu= np.array([d['mu'] for d in data_points])
-        T = np.reshape(T,(len(T),1))
+        # print('read from mc', kappa[:5])
+        # print(kappa)
+
+        if self.version == 'row' and self.data_gen_source!='CASM_Surrogate':
+            kappa = np.array([d['kappa'] for d in data_points])
+            eta = np.array([d['eta'] for d in data_points])
+            phi = np.array([d['phi'] for d in data_points])
+            T = np.array([d['T'] for d in data_points])
+            mu= np.array([d['mu'] for d in data_points])
+            T = np.reshape(T,(len(T),1))
+        elif self.version == 'row' and self.data_gen_source=='CASM_Surrogate':
+            kappa = np.array(kappa,dtype=float)#/32
+            eta = np.array(eta,dtype=float)#/32
+            phi = np.array(phi,dtype=float)#*32*32
+            T = np.array(T,dtype=float)[0,:,:]
+            mu = np.array(mu,dtype=float)
+            # mu = -2.*phi*(eta - kappa)
+
+            # print('mu write',mu)
+        else:
+            kappa = np.array(kappa,dtype=float)
+            eta = np.array(eta,dtype=float)
+            phi = np.array(phi,dtype=float)
+            T = np.array(T,dtype=float)[0,:,:]
+            mu = -2.*phi*(eta - kappa)
+
+            
+        # print(np.shape(T))
         dataOut = np.hstack((kappa,eta,phi,T,mu))
         dataOut = dataOut[~pd.isna(dataOut).any(axis=1)] #remove any rows with nan
         outVars = ['kappa','eta','phi']
         header = ''
         for outVar in outVars:
-            for i in range(self.Input_dim):
+            for i in range(self.Input_dim-1):
                 header += outVar+'_'+str(i)+' '
         header += 'T '
-        for i in range(self.Input_dim):
+        for i in range(self.Input_dim-1):
             header += 'mu_'+str(i)+' '
 
         np.savetxt(self.OutputFolder + 'data/data_sampled/CASMresults{}.txt'.format(rnd),
@@ -135,6 +170,8 @@ class CASM_Sampling(Sampling):
 
 
         dataOut = np.hstack((eta,T,mu))
+
+        # print('data to save',dataOut)
 
 
         np.save(self.OutputFolder + 'data/data_sampled/results{}'.format(rnd),
@@ -164,7 +201,8 @@ class CASM_Sampling(Sampling):
 
     
     def construct_job(self,rnd):
-        rows_to_keep = [0, 29, 30, 31]
+        # rows_to_keep = [0, 29, 30, 31]
+        # rows_to_keep= [0,1,2,3,4,5,6]
         data_recommended = self.read(rnd) 
         eta = data_recommended[:,:self.Input_dim-1]
         T = data_recommended[:,self.Input_dim-1:self.Input_dim]
@@ -177,7 +215,7 @@ class CASM_Sampling(Sampling):
             # mu_test = self.model.predict([eta[:,0:1],eta[:,1:2],eta[:,2:], T])[1]
             mu_test = self.model.predict([eta,T])[1]
 
-        kappa = eta + 0.5*mu_test/self.phi
+        kappa = eta #+ 0.5*mu_test/self.phi
 
         n = len(kappa)
         phi = np.array(n*[self.phi])
@@ -189,10 +227,12 @@ class CASM_Sampling(Sampling):
         # with open('/expanse/lustre/scratch/jholber/temp_project/git/row/active-learning/active_learning/data_collector/monte_settings_row.json.tmpl','r') as tmplFile:          
         #     tmpl = json.load(tmplFile)
 
-        with open('/expanse/lustre/scratch/jholber/temp_project/git/row/active-learning/active_learning/data_collector/monte_settings_row.json.tmpl','r') as tmplFile:
+        with open('{}/monte_settings_row.json.tmpl'.format(os.path.dirname(__file__)),'r') as tmplFile:
                 
             tmpl = json.load(tmplFile)
             for job in range(self.N_jobs):
+                # print('casm')
+                # print(kappa[:5,:])
                 shutil.rmtree(self.OutputFolder + 'data/data_sampled/job_{}'.format(job+1),ignore_errors=True)
                 os.mkdir(self.OutputFolder + 'data/data_sampled/job_{}'.format(job+1))
 
@@ -223,11 +263,8 @@ class CASM_Sampling(Sampling):
                     elif self.version == 'row':
                         
                         kappas = [0]*32
-                        # kappaA = [0]*32  
-                        # print('kappa',kappa[0])
-                        # print('kappa shape',np.shape(kappa))
                         k=0
-                        for j in rows_to_keep:
+                        for j in self.relevent_indices:
                             kappas[j] = kappa[i,k]*32
                             k+=1
                         TA = float(T[i,0])
@@ -239,12 +276,14 @@ class CASM_Sampling(Sampling):
                             phiA[x]=0.00009765625*.5#*(.5+maxvalue)
 
                         # kappas = [[y for y in kappaA] for kappaA in kappas]
-
                         # inputF = copy.deepcopy(tmpl)
                         # print("kappas",kappas)
                         # print("phi",phiA)
+                        # for k in range(5):
+                        # print('casm submit', kappas[:5])
+
                         inputF['driver']['custom_conditions']+=[{'tolerance': 0.001,
-                                    'temperature': 260.0,
+                                    'temperature': TA,
                                     'order_parameter_quad_pot_vector': phiA,
                                     'order_parameter_quad_pot_target': kappas}]
         
@@ -261,7 +300,10 @@ class CASM_Sampling(Sampling):
 
         command = []
         if self.Data_Generation_Source == 'CASM_Surrogate':
+            # if self.version!='row':
             data_generation = [self.Hidden_Layers, self.Input_Shape, self.dim, self.CASM_version, self.data_gen_activation, self.folder]
+            # else:
+                # data_generation = [self.lossterms, self.loss_weights, self.dim, self.CASM_version, self.data_gen_activation, self.folder]
             string = ""
             for i in data_generation:
                 string += str(i) + " "

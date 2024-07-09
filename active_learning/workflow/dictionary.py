@@ -9,9 +9,10 @@ class Dictionary():
 
     def __init__(self, input_file):
 
-        with open('../../active_learning/workflow/sample.json') as json_file:
+        filepath = os.path.dirname(__file__)
+
+        with open('{}/sample.json'.format(filepath)) as json_file:
             self.dict = json.load(json_file)
-        # print(self.dict)
         self.construct_dict(input_file)
         self.dict['Main']['dir_path'] = os.path.dirname(input_file)
         self.maintain_input()
@@ -74,7 +75,7 @@ class Dictionary():
             if self.dict[inputs[i][0]][inputs[i][1]] != None:
                 self.dict[inputs[i][0]][inputs[i][1]] =[float(p) for p in self.dict[inputs[i][0]][inputs[i][1]].split(',')]
             elif not nullallowed:
-                print('self.dict[inputs[i][0]][inputs[i][1]]',self.dict[inputs[i][0]][inputs[i][1]])
+                # print('self.dict[inputs[i][0]][inputs[i][1]]',self.dict[inputs[i][0]][inputs[i][1]])
                 raise Exception('Input',inputs[i],'is null')
     
     def set_as_str_array(self,inputs,nullallowed=False):
@@ -96,9 +97,9 @@ class Dictionary():
     def verifypath(self,inputs):
         for i in range(np.shape(inputs)[0]):
             if not os.path.isabs(self.dict[inputs[i][0]][inputs[i][1]]):
-                print("file",inputs[i][0],inputs[i][1] )
+                # print("file",inputs[i][0],inputs[i][1] )
                 pathlocation = os.path.join( self.dict['Main']['dir_path'], self.dict[inputs[i][0]][inputs[i][1]])
-                print("pathlocation",pathlocation)
+                # print("pathlocation",pathlocation)
                 assert(os.path.exists(pathlocation))
                 self.dict[inputs[i][0]][inputs[i][1]] = pathlocation
 
@@ -126,7 +127,7 @@ class Dictionary():
                 self.set_as_int_array([['IDNN_Hyperparameter','layers'],['IDNN_Hyperparameter','neurons'], ['IDNN_Hyperparameter','epochs'],['IDNN_Hyperparameter','batch_size']],nullallowed=True)
                 self.set_as_float_array([['IDNN_Hyperparameter','dropout'],['IDNN_Hyperparameter','learning'], ['IDNN_Hyperparameter','lr_decay'],['IDNN_Hyperparameter','factor'],['IDNN_Hyperparameter','patience'],['IDNN_Hyperparameter','min_lr']],nullallowed=True)
       
-
+        float_inputs+= [['Main','temp']]
         true_false += [['Main','data_generation']]
         if self.dict['Main']['data_generation'] == 'True':
             if self.dict['Main']['data_generation_source'] == 'CASM':
@@ -135,9 +136,10 @@ class Dictionary():
                 assert('initial_mu' in self.dict['CASM'])
                 if self.dict["CASM"]["casm_version"] == '0.3.X':
                     self.dict["CASM"]["casm_version"] = 'LCO'
-                print(self.dict["CASM"]["phi"])
+                # print(self.dict["CASM"]["phi"])
                 float_array_inputs += [['CASM','phi']]
                 int_inputs += [['CASM','n_jobs']]
+                int_array_inputs += [['CASM','relevent_indices']]
             if self.dict['Main']['data_generation_source'] == 'CASM_Surrogate':
                 paths += ([['CASM_Surrogate','casm_project_dir'],['CASM_Surrogate','transforms_directory']])
                 assert('initial_mu' in self.dict['CASM_Surrogate'])
@@ -147,8 +149,7 @@ class Dictionary():
                 # int_array_inputs += [['CASM_Surrogate','hidden_layers']]
                 float_array_inputs += [['CASM_Surrogate','phi']]#,['CASM_Surrogate','input_shape']]
                 int_inputs += [['CASM_Surrogate','n_jobs'],['CASM_Surrogate','dim']]
-                if self.dict['CASM_Surrogate']["version"] == '0.3.X':
-                    self.dict['CASM_Surrogate']["version"] = 'LCO'
+                int_array_inputs += [['CASM_Surrogate','relevent_indices']]
 
             if self.dict['Sampling_Job_Manager']['job_manager']=='slurm':
                 assert('account' in self.dict['Sampling_Job_Manager'])
@@ -156,21 +157,30 @@ class Dictionary():
                 assert('mem' in self.dict['Sampling_Job_Manager'])
             
 
-
-        true_false += [['Main','restart'],['Main','input_data'],
+        # print('exploit params',self.dict['Exploit_Parameters'])
+        true_false += [['Main','restart'],['Main','input_data'],['Main','reweight'],
                        ['Exploit_Parameters','high_error'],['Explore_Parameters','sample_known_wells'],
-                       ['Explore_Parameters','sample_known_vertices'],['Exploit_Parameters','hessian'],
-                       ['Exploit_Parameters','find_wells']]
+                       ['Explore_Parameters','sample_known_vertices'],['Exploit_Parameters','non_convexities'],
+                       ['Exploit_Parameters','find_wells'],['Exploit_Parameters','lowest_free_energy'],['Exploit_Parameters','sensitivity'],['Exploit_Parameters','qbc']]
         str_array_inputs += [['Main','input_alias'],['Main','output_alias']]
-        int_inputs += [['Main','iterations'],['Main','seed'],['Explore_Parameters','global_points']]
+        int_inputs += [['Main','iterations'],['Main','seed'],['Main','prediction_points'],['Explore_Parameters','global_points']]
+        float_inputs += [['Main','reweight_alpha']]
 
-
-        if self.dict['Exploit_Parameters']['hessian'] == 'True':
-            int_array_inputs += [['Exploit_Parameters','hessian_repeat'],['Exploit_Parameters','hessian_repeat_points']]
+        if self.dict['Exploit_Parameters']['non_convexities'] == 'True':
+            int_array_inputs += [['Exploit_Parameters','non_convexities_repeat'],['Exploit_Parameters','non_convexities_repeat_points']]
         if self.dict['Exploit_Parameters']['high_error'] == 'True':
             int_array_inputs += [['Exploit_Parameters','high_error_repeat'],['Exploit_Parameters','high_error_repeat_points']]
         if self.dict['Exploit_Parameters']['find_wells'] == 'True':
             int_array_inputs += [['Exploit_Parameters','wells_repeat'],['Exploit_Parameters','wells_repeat_points']]
+        if self.dict['Exploit_Parameters']['sensitivity'] == 'True':
+            int_array_inputs += [['Exploit_Parameters','sensitivity_repeat'],['Exploit_Parameters','sensitivity_repeat_points']]
+
+        if self.dict['Exploit_Parameters']['qbc'] == 'True':
+            int_inputs += [['Exploit_Parameters','qbc_points']]
+
+        if self.dict['Exploit_Parameters']['lowest_free_energy'] == 'True':
+            int_inputs += [['Exploit_Parameters','lowest_repeat']]
+            paths += [['Exploit_Parameters','lowest_file']]
 
         if self.dict['Explore_Parameters']['sample_known_wells'] == 'True':
             int_inputs += [['Explore_Parameters','wells_points']]
@@ -247,15 +257,18 @@ class Dictionary():
                 
 
         for domain in self.dict['Sampling']['continuous_dependent']:
-            rows_to_keep = [0, 29, 30, 31]
+            # rows_to_keep = [0, 29, 30, 31]
+            # rows_to_keep = [0,1,2,3,4,5,6]
+            # if self.dict['Main']['data_generation_source'] == 'CASM':
+            relevent_indices = self.dict[self.dict['Main']['data_generation_source']]['relevent_indices']
             Q = np.loadtxt(self.dict['Sampling']['continuous_dependent'][domain]['filepath'])
-            invQ = np.linalg.inv(Q)[:,rows_to_keep]
-            self.dict['Sampling']['continuous_dependent'][domain]['Q'] = Q[:,rows_to_keep]
+            invQ = np.linalg.inv(Q)[:,relevent_indices]
+            self.dict['Sampling']['continuous_dependent'][domain]['Q'] = Q[:,relevent_indices]
             self.dict['Sampling']['continuous_dependent'][domain]['n_planes'] = np.vstack((invQ,-invQ))
             self.dict['Sampling']['continuous_dependent'][domain]['c_planes']= np.hstack((np.ones(invQ.shape[0]),np.zeros(invQ.shape[0])))
             self.dict['Sampling']['continuous_dependent'][domain]['invQ']= invQ
 
-            print(np.shape(self.dict['Sampling']['continuous_dependent'][domain]['Q'] ))
+            # print(np.shape(self.dict['Sampling']['continuous_dependent'][domain]['Q'] ))
 
             # print('Q from file', np.shape(Q))
             # print('invQ',np.shape(invQ))

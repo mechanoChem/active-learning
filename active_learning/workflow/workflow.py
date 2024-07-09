@@ -26,7 +26,7 @@ class Workflow():
         #  self.wells_points,self.sample_known_vertices,self.vertices, 
         #  self.vertice_points] = self.dict.get_category_values('Explore_Parameters')
 
-        # [self.sample_hessian,self.hessian_repeat, self.hessian_repeat_points,self.sample_high_error,
+        # [self.sample_non_convexities,self.non_convexities_repeat, self.non_convexities_repeat_points,self.sample_high_error,
         # self.high_error_repeat, self.high_error_repeat_points, self.find_wells, self.wells_repeat,self.wells_repeat_points] = self.dict.get_category_values('Exploit_Parameters')
         # self.construct_model()
         # self.rnd=0
@@ -55,15 +55,19 @@ class Workflow():
          self.Data_Generation, self.Data_Generation_Source, 
          self.restart, self.Input_data, self.Input_alias, 
          self.Output_alias,self.Iterations, self.OutputFolder, 
-         self.seed,self.input_dim,self.output_dim,self.derivative_dim,self.config_path] = self.dict.get_category_values('Main')
+         self.seed,self.input_dim,self.output_dim,self.derivative_dim,self.config_path,self.T, self.graph,self.reweight,self.reweight_alpha,self.prediction_points] = self.dict.get_category_values('Main')
         
         
         [self.N_global_pts, self.sample_known_wells,self.wells,
          self.wells_points,self.sample_known_vertices,self.vertices, 
          self.vertice_points] = self.dict.get_category_values('Explore_Parameters')
 
-        [self.sample_hessian,self.hessian_repeat, self.hessian_repeat_points,self.sample_high_error,
-        self.high_error_repeat, self.high_error_repeat_points, self.find_wells, self.wells_repeat,self.wells_repeat_points] = self.dict.get_category_values('Exploit_Parameters')
+
+
+        [self.sample_non_convexities,self.non_convexities_repeat, self.non_convexities_repeat_points,self.sample_high_error,
+        self.high_error_repeat, self.high_error_repeat_points, self.find_wells, self.wells_repeat,self.wells_repeat_points, 
+        self.lowest_free_energy,self.lowest_repeat,self.lowest_free_energy_file,
+        self.sample_sensitivity,self.sensitivity_repeat_points, self.sensitivity_repeat,self.QBC,self.QBC_repeat] = self.dict.get_category_values('Exploit_Parameters')
         if self.restart==False:
             self.rnd=0
             if  os.path.exists(self.OutputFolder + 'training'):
@@ -105,6 +109,10 @@ class Workflow():
                 self.sampling = CASM_Sampling(self.model, self.dict)
         self.recommender = DataRecommender(self.model,self.dict)
         self.recommender.construct_input_types()
+        self.first_explore=True
+        self.first_exploit=True
+
+        # self.recommender.query_by_committeee(1,2)
 
 
     def construct_model(self):
@@ -145,6 +153,13 @@ class Workflow():
 
 
     def explore(self):
+        if self.first_explore:
+            self.recommender.create_types("billiardwalk")
+            if self.sample_known_wells:
+                self.recommender.create_types('sample_wells')
+            if self.sample_known_wells:
+                self.recommender.create_types('sample_vertices')
+            self.first_explore=False
         self.recommender.explore(self.rnd)
         if self.sample_known_wells:
             print('Sampling Wells and End Members')
@@ -157,14 +172,37 @@ class Workflow():
 
     
     def exploit(self,model):
+        if self.first_exploit:
+            if self.sample_high_error:
+                self.recommender.create_types("high_error")
+            if self.find_wells:
+                self.recommender.create_types('find_wells')
+            if self.find_wells:
+                self.recommender.create_types('sample_vertices')
+            if self.lowest_free_energy:
+                self.recommender.create_types('lowest_free_energy')
+            if self.sample_non_convexities:
+                self.recommender.create_types('non_convexities')
+            if self.sample_sensitivity:
+                self.recommender.create_types('sensitivity')
+            self.first_exploit=False
+
         self.recommender.get_latest_pred(self.rnd)
+        if self.sample_non_convexities or self.sample_sensitivity:
+            self.recommender.explore_extended(self.rnd)
+            self.recommender.predict_explore_extended(self.rnd)
+            self.recommender.find_eigenvalues_explore(self.rnd)
         if self.sample_high_error == True:
             self.recommender.high_error(self.rnd)
-        if self.sample_hessian == True:
-            self.recommender.hessian(self.rnd)
+        if self.sample_non_convexities == True:
+            self.recommender.non_convexities(self.rnd)
         if self.find_wells:
             self.recommender.find_wells(self.rnd)
-        self.recommender.lowest_free_energy_curve(self.rnd)
+        if self.lowest_free_energy:
+            self.recommender.lowest_free_energy_curve(self.rnd)
+        if self.sample_sensitivity:
+            self.recommender.sensitivity(self.rnd)
+
 
 
 
@@ -188,10 +226,14 @@ class Workflow():
                      f'dict = Dictionary("{os.path.abspath(self.input_path)}")',
                      'model  = IDNN_Model(dict)']
         training_func = 'model.train_rand_idnn'.format(self.config_path)
+
+        if not self.sample_non_convexities and not self.sample_sensitivity:
+            self.recommender.explore_extended(rnd)
     
         params = hyperparameterSearch(rnd,N_hp_sets,commands,training_func, job_manager,account,walltime,mem,self.OutputFolder)
-        # self.model.new_model(params)
         self.model.load_trained_model(rnd)
+        if self.QBC:
+            self.recommender.query_by_committeee(rnd,N_hp_sets)
     
     def IDNN_transforms(self):
 
@@ -225,15 +267,6 @@ class Workflow():
     def train(self):
         self.model.train(self.rnd)
         self.model.save_model(self.rnd)
-        # self.model.train(2)
-        # # self.model.save_model(0)
-        # self.model.train(2)
-        # self.model.save_model(2)
-    
-
-
-        
-        
 
 
     def main_workflow(self):
@@ -248,6 +281,7 @@ class Workflow():
         if self.step == 'Explorative':
             print('Explorative Data Recommendations, round ',self.rnd,'...')
             self.explore()
+            self.recommender.choose_points(self.rnd)
             if self.Data_Generation==True:
                 self.step = 'Sampling'
             else:
@@ -274,9 +308,10 @@ class Workflow():
                 # self.rnd += 1
                 print('Exploitative Sampling, round ',self.rnd,'...')
                 self.exploit(self.model)
+                self.recommender.choose_points(self.rnd)
             elif self.rnd == 1:
                 self.model = self.hyperparameter_search(self.rnd)
-            # graph(self.rnd, self.model,self.dict)
+            graph(self.rnd, self.model,self.dict)
         
             self.rnd += 1
 
@@ -285,6 +320,10 @@ class Workflow():
         #  
         for self.rnd in range (self.rnd,self.Iterations+1):
             #First predict data  
+
+            if self.rnd>1 and self.reweight:
+                self.recommender.reweight_criterion(self.rnd)
+
             self.step == 'Exploitative'
             print('Exploitative Sampling, round ',self.rnd,'...')
             self.exploit(self.model)
@@ -293,6 +332,8 @@ class Workflow():
             print('Begin Explorative Sampling, round ',self.rnd,'...')
             self.explore()
 
+            self.recommender.choose_points(self.rnd)
+
             self.step = 'Sampling'
             self.sample_data(self.rnd)
 
@@ -300,14 +341,19 @@ class Workflow():
             
             # next Training
             self.step == 'Model_training'
+            # if 1 == 0:#
             if self.rnd == 1 or not self.better_than_prev(self.rnd-1):
                 # print('Train surrogate model, round ',self.rnd,'...')
                 # self.train()
                 print('Perform hyperparameter search...')
+                if self.rnd==1:
+                    self.recommender.create_types('QBC')
+                    
                 self.hyperparameter_search(self.rnd)
+                
 
             else:
                 print('Train surrogate model, round ',self.rnd,'...')
                 self.train()
 
-            # graph(self.rnd, self.mzdel,self.dict)
+            graph(self.rnd, self.model,self.dict)

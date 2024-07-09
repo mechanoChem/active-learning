@@ -47,15 +47,23 @@
  "vertices_points": "15"},
  
  "Exploit_Parameters": 
- {"hessian": "True", 
- "hessian_repeat": "3,2", 
- "hessian_repeat_points": "20,10", 
+ {"non_convexities": "True", 
+ "non_convexities_repeat": "3,2", 
+ "non_convexities_repeat_points": "20,10", 
  "high_error": "True", 
  "high_error_repeat": "3,2", 
  "high_error_repeat_points": "20,10", 
  "find_wells": "True",
  "wells_repeat": "3,2", 
- "wells_repeat_points": "20,10"}, 
+ "wells_repeat_points": "20,10",
+ "lowest_free_energy": "True",
+"lowest_repeat": "1",
+"lowest_file": "eta_curve.txt",
+ "sensitivity": "True", 
+ "sensitivity_repeat": "3,2", 
+ "sensitivity_repeat_points": "20,10",
+ "qbc": "True",
+ "qbc_points": "1000"}, 
  
 
  "Sampling_Job_Manager": 

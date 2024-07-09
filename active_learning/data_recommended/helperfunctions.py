@@ -12,7 +12,7 @@ def convex(M):
 
 def convexMult(Ms):
 
-    ind = np.zeros(Ms.shape[0],dtype=np.bool)
+    ind = np.zeros(Ms.shape[0],dtype=bool)
     for i in range(Ms.shape[0]):
         ind[i] = convex(Ms[i])
 

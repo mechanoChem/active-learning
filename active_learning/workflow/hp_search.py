@@ -83,6 +83,7 @@ def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account,
     
     # Submit the training sessions with various hyperparameters
     i=0
+    # print('job_manager',job_manager)
     if job_manager != 'PC':
         from active_learning.data_collector.slurm_manager import numCurrentJobs, submitJob
         while numCurrentJobs('optimizeHParameters_{}'.format(i)) > 0:
@@ -91,8 +92,8 @@ def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account,
 
     submitHPSearch(N_sets,rnd,commands,training_func, job_manager, account, walltime, memory,outputfolder,i)
 
-    print('i',i)
-    print(numCurrentJobs('optimizeHParameters_{}'.format(i)) > 0)
+    # print('i',i)
+    # print(numCurrentJobs('optimizeHParameters_{}'.format(i)) > 0)
     # Wait for jobs to finish
     if job_manager != 'PC':
         from active_learning.data_collector.slurm_manager import numCurrentJobs, submitJob
@@ -127,6 +128,7 @@ def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account,
     # print('sortedhp', sortedHP)
     os.rename(outputfolder + 'training/model_{}/'.format(sortedHP[0][1]),outputfolder + 'training/model_{}/'.format(rnd))
     copyfile(outputfolder +'training/training_{}.txt'.format(sortedHP[0][1]),outputfolder +'training/training_{}.txt'.format(rnd))
+    
     for i in range(N_sets):
         shutil.rmtree(outputfolder + 'training/model_{}_{}'.format(rnd,i),ignore_errors=True)
 
