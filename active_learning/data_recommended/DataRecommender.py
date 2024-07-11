@@ -26,14 +26,14 @@ class DataRecommender():
     def __init__(self,model,dictionary): 
         self.dict = dictionary
         self.model = model
-        [self.N_global_pts, self.sample_known_wells,self.wells,
-         self.wells_points,self.sample_known_vertice,self.vertices, 
-         self.vertice_points] = self.dict.get_category_values('Explore_Parameters')
+        [self.N_global_pts, self.sample_external,self.external_path,
+         self.external_points,self.external_perturbation] = self.dict.get_category_values('Explore_Parameters')
         # [self.inputs_alias,self.OutputFolder] = self.dict.get_individual_keys(['input_alias','OutputFolder'])
-        [self.sample_non_convexities,self.non_convexities_repeat, self.non_convexities_repeat_points,self.sample_high_error,
-        self.high_error_repeat, self.high_error_repeat_points, self.sample_find_wells, self.wells_repeat,
-        self.wells_repeat_points, self.lowest_free_energy,self.lowest_repeat,self.lowest_free_energy_file,
-        self.sample_sensitivity,self.sensitivity_repeat_points, self.sensitivity_repeat,self.QBC,self.QBC_repeat] = self.dict.get_category_values('Exploit_Parameters')
+        
+        [self.sample_non_convexities,self.non_convexities_repeat, self.non_convexities_repeat_points,self.non_convexities_perturb,self.sample_high_error,
+        self.high_error_repeat, self.high_error_repeat_points, self.high_error_perturb, self.sample_find_wells, self.wells_repeat,
+        self.wells_repeat_points,self.wells_perturb, self.lowest_free_energy,self.lowest_repeat,self.lowest_repeat_points, self.lowest_free_energy_file,self.lowest_perturb,
+        self.sample_sensitivity,self.sensitivity_repeat_points, self.sensitivity_repeat,self.sensitivity_perturb,self.QBC,self.QBC_repeat,self.QBC_repeat_points,self.QBC_perturb] = self.dict.get_category_values('Exploit_Parameters')
         self.header = ''
 
         [self.Model_type,    
@@ -52,46 +52,9 @@ class DataRecommender():
             self.type_criterion = json.loads(data)
         # self.alpha=100000
 
-        self.dim=self.inputs_dim-1
-
-    def keep_good_output(self,output,type):
-        eta = output[:,0:self.dim]
-        # self.sampling_dict['continuous_dependent'][domain]['type']
-        # Qinv = self.sampling_dict['continuous_dependent']['etasampling']['invQ'] 
-
-        keep = np.ones((np.shape(eta)[0]), dtype=np.int8)
-        # count=0
-        # count2=0
-
-        for k in range(np.shape(eta)[0]):
-            isbad = False 
-            for i in range(31):
-                value = 0
-                for j in range(6):
-                    value += self.Qinv[i,j]*eta[k,j]
-                # print('value',value)
-                if value > 1.1 or value < -0.1:
-                    # count+=1
-                    # keep[k]=0
-                    isbad = True
-            # if isbad == False:
-            #     # print(keep[k])
-            #     count2+=1
-            #     keep[k]= 1
-            # else:
-            #     keep[k]=0
-                # print(keep[k])
-            # if isbad == True:
-            #     # print(keep[k])
-            #     keep[k]=0
-            #     # print(keep[k])
-        # keep = np.array(keep)
-        true_false_array = [bool(x) for x in keep]
-        return  output[true_false_array,:]
-                
+        self.dim=self.inputs_dim-1                
         
     def create_types(self,type):   
-        # print(self.type_criterion)
         self.type_criterion[type] = len(self.type_criterion)
 
         self.weights = np.ones(len(self.type_criterion))
@@ -213,7 +176,7 @@ class DataRecommender():
         #     column = inputs[k]
         #     inputs[k] = column[I]
         
-        input_local = self.find_new_points(input,self.wells_repeat_points,self.wells_repeat,[0.15,.5],'find_wells')
+        input_local = self.find_new_points(input,self.wells_repeat_points,self.wells_repeat,[self.wells_perturb,.5],'find_wells')
         input_local = self.combine_list(input_local)
 
         if np.shape(input_local)[0] != 0:
@@ -225,81 +188,18 @@ class DataRecommender():
         return input_local
     
 
-    def sample_external_data(self,rnd,path,value, name):
-        columns = np.load(path,allow_pickle=True) 
-        print('wells',columns)
-        #EDIT - be more generic
-        
+    def sample_external_data(self,rnd):
 
-        columns = [columns[:,0:self.dim],columns[:,self.dim:]]
-        input_local = self.find_new_points(columns,[10],[self.wells_points],[value[0],value[1]])
-        input_local= self.combine_list(input_local)
-        self.write(rnd, name, input_local)
+        eta = np.loadtxt(self.external_path)
+        T= self.T*np.ones((np.shape(eta)[0],1))
+        input =[eta,T]
+        input_local = self.find_new_points(input,[np.shape(eta)[0]],[self.external_points],[self.external_perturbation,.5],'Externally_supplied_points')
+        input_local = self.combine_list(input_local)
 
 
-    def sample_wells(self, rnd):
-        # self.sample_external_data(rnd,self.wells,[.15,0.5],'sample_wells')
-        etaW = np.zeros((2*self.dim,self.dim))
-        T = self.T*np.ones((2*self.dim,1))
-        # wells
-        etaW[:,0] = 0.5
-        for i in range(1,self.dim):
-            etaW[2*i,i] = 0.425
-            etaW[2*i+1,i] = -0.425
-        # end members
-        etaW[0,0] = .075
-        etaW[1,0] = .925
-        # etaW[:,0] = np.linspace(0.1,0.9,14)
 
-        # define bias parameters
-        if rnd<100:
-            kappaW = etaW
-        else:
-            phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
-            muW = self.model.predict([etaW,T])[1]
-            kappaW = etaW + 0.5*muW/phi
-        # print('well points',self.wells_points)
-        # print('weight',self.weights[self.type_criterion['sample_wells']])
-        N_w = round(self.wells_points*self.weights[self.type_criterion['sample_wells']])  #35 #50
-        if N_w < 10:
-            N_w=10
-        # print('N_w',N_w)
-        kappaW = np.repeat(kappaW,N_w,axis=0)
-        kappaW  += .1*(np.random.rand(*kappaW.shape)-0.5)
-        temp = self.T*np.ones((2*self.dim*N_w,1))
-        input_local = np.hstack((kappaW,temp))
-        # print('size of sample wells',np.shape(input_local))
-        self.write(rnd, 'sample_wells', input_local)
-           
-    def sample_vertices(self,rnd):
-        # self.sample_external_data(rnd,self.vertices,[-.05,0],'sample_vertices')
-        etaB = np.zeros((2*(self.dim-1),self.dim))
-        T = self.T*np.ones((2*(self.dim-1),1))
-        # wells
-        etaB[:,0] = 0.5
-        for i in range(1,self.dim):
-            etaB[2*i-2,i] = 0.5
-            etaB[2*i-1,i] = -0.5
-        if rnd<100:
-            kappaB = etaB
-        else:
-            phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
-            muB = self.model.predict([etaB,T])[1]
-            kappaB = etaB + 0.5*muB/phi
+        self.write(rnd, 'Externally_supplied_points', input_local)
 
-        N_w2 = round(self.vertice_points*self.weights[self.type_criterion['sample_vertices']]) # Number of random points per vertex
-        if N_w2<10:
-            N_w2=10
-        kappaW2 = np.zeros((2*(self.dim-1)*N_w2,self.dim))
-        temp = self.T*np.ones((2*(self.dim-1)*N_w2,1))
-        kappaW2[:,0] = kappaB[0,0]
-        kappaW2 += 0.05*(np.random.rand(*kappaW2.shape)-0.5) # Small random perterbation
-        for i in range(1,self.dim):
-            for j in range(2*N_w2):
-                kappaW2[2*(i-1)*N_w2 + j,i] = np.random.rand()*(kappaB[2*i-2,i] - kappaB[2*i-1,i]) + kappaB[2*i-1,i] # Random between positive and negative well
-        input_local = np.hstack((kappaW2,temp))
-        self.write(rnd, 'sample_vertices', input_local)
-    
 
     def create_test_set_sobol(self,N_points,dim,bounds=[0.,1.],seed=1):
 
@@ -439,11 +339,9 @@ class DataRecommender():
    
 
     def get_latest_pred(self,rnd):
-        # print('Loading data...')
         self.inputs,self.output = self.load_data(rnd-1)
         print('Predicting...')
         self.output_pred = self.model.predict(self.inputs.copy())
-        # print('latest prediction',self.output_pred )
     
 
 
@@ -473,7 +371,7 @@ class DataRecommender():
                 inputs[k]=higherror
             
             # print('high error og points order',inputs)
-            input_local = self.find_new_points(inputs, self.high_error_repeat_points, self.high_error_repeat,[.01,0.5], 'high_error')
+            input_local = self.find_new_points(inputs, self.high_error_repeat_points, self.high_error_repeat,[self.high_error_perturb,0.5], 'high_error')
    
         input_local = self.combine_list(input_local)
 
@@ -500,43 +398,12 @@ class DataRecommender():
 
     def lowest_free_energy_curve(self,rnd):
         print('Finding lowest free energy curve rnd',rnd)
-        # n = [50,50,25,10,0,0,0,0,0]
-        # for i in range(self.dim):
-        #     n[i]=int(n[i]*self.weights[self.type_criterion['lowest_free_energy']])
-
-    
-
-        # eta0 = np.linspace(0.45,0.55, n[0])
-        # eta1 = np.linspace(0,0.5,n[1])
-        # eta2 = np.linspace(0,0.25,n[2])
-        # eta3 = np.linspace(0,0.16,n[3])
-        
-        # # print('created etas')
-        # eta = np.meshgrid(eta0,eta1,eta2,eta3)
-        # # print('created meshgrid')
-        # etainput = np.array([eta[i].flatten()  for i in range(4)]).T
-
-        # etainput = etainput[etainput[:,1]>etainput[:,2]]
-        # etainput = etainput[etainput[:,2]>etainput[:,3]]
-        # # eta = etainput[self.isindomain(etainput)]
-        # additional_etas = np.zeros((np.shape(etainput)[0],3))
-        # print(np.shape(etainput))
-        # print(np.shape(additional_etas))
-        # eta = np.hstack((etainput,additional_etas))
-
-        # I = self.isindomain(eta[:,0:self.dim])
-        # # print('I',I)
-        # eta = eta[I,:]
-
-        # np.savetxt('eta_curve_zigzag.txt',eta)
 
         eta = np.loadtxt(self.lowest_free_energy_file)
-        # eta=np.loadtxt('/expanse/lustre/scratch/jholber/temp_project/git/row/active-learning/tests/LCO_row/eta_curve_2.txt')
         T= self.T*np.ones((np.shape(eta)[0],1))
         pred_new = self.model.predict([eta,T])
         free_new = pred_new[0]
         mu_new = pred_new[1]
-        # print('pred',pred_new)
 
         data = np.hstack((eta,mu_new,free_new))
 
@@ -559,7 +426,12 @@ class DataRecommender():
         result = df.loc[idx, resultlist]
         # print(result[0:2,:])
         temp = self.T*np.ones((np.shape(result)[0],1))
-        input_local = np.hstack((result,temp))
+        input =[result,T]
+        input_local = self.find_new_points(input,self.lowest_repeat_points,self.lowest_repeat,[self.lowest_perturb,.5],'lowest_free_energy')
+        print(input_local)
+        input_local = self.combine_list(input_local)
+
+        # input_local = np.hstack((result,temp))
         # print(input_local[0:2,:])
         self.write(rnd, 'lowest_free_energy', input_local)
 
@@ -733,8 +605,7 @@ class DataRecommender():
         return mse
 
 
-
-    def reweight_criterion(self, rnd):
+    def determine_improvement(self,rnd):
         points = self.read_recommended(rnd-1)
         
         # predict with old model
@@ -752,11 +623,9 @@ class DataRecommender():
 
         categories = points[:,-1]
 
-
-
-
         mse_old = self.diff_in_mu(pred_old[1],real_data)
         mse_new = self.diff_in_mu(pred_new[1],real_data)
+        
 
         type_averages_new = {category: np.mean(mse_new[categories == self.type_criterion[category]]) for category in self.type_criterion}
         type_averages_old = {category: np.mean(mse_old[categories == self.type_criterion[category]]) for category in self.type_criterion}
@@ -764,6 +633,18 @@ class DataRecommender():
 
         # Calculate the average improvement in MSE for each type
         type_improvements = {category: type_averages_old[category] - type_averages_new[category] for category in self.type_criterion}
+        return type_improvements
+
+    def stopping_criteria(self,type_improvements):
+        avg_improvement = sum(type_improvements.values())/len(type_improvements)
+        if avg_improvement < self.stopping_alpha:
+            return True
+        else:
+            return False
+
+
+    def reweight_criterion(self, rnd,type_improvements):
+        
         # print('self.weights',self.weights)
         for category in self.type_criterion:
             if category != 'QBC' and not (category == 'hessian' and self.non_convexities_points_found==False):
@@ -882,7 +763,7 @@ class DataRecommender():
 
         
         predictions = np.zeros((set_size,np.shape(data)[0],self.inputs_dim))
-        num = self.QBC_repeat
+        # num = self.QBC_repeat
 
 
 
@@ -901,20 +782,27 @@ class DataRecommender():
 
         # print(np.shape(predictions))
 
-        variations = np.std(flucuation, axis=1)
+        # variations = np.std(flucuation, axis=1)
+
+        variations = np.sum(flucuation,axis=1)
 
         # Get the indices of the data points with the largest variations
-        indices = np.argsort(-variations)
+        indices = np.argsort(-variations)[::-1]
         
         data_sorted= data[indices,:]
 
 
 
-        num = round(num*self.weights[self.type_criterion['QBC']])
-        if num < 10:
-            num = 10
+        # num = round(num*self.weights[self.type_criterion['QBC']])
+        # if num < 10:
+        #     num = 10
 
-        data_sorted= data_sorted[:num,:]
+        # data_sorted= data_sorted[:num,:]
+
+        input = [data_sorted[:,0:self.dim],data_sorted[:,self.dim:]]
+        input_local = self.find_new_points(input, self.QBC_repeat_points, self.QBC_repeat,[self.QBC_perturb,0.5], 'QBC')
+        # print('inputs3',np.shape(input_local))
+        input_local = self.combine_list(input_local)
 
         self.write(rnd, 'QBC', data_sorted)
 
@@ -945,7 +833,7 @@ class DataRecommender():
         inputs = inputs[I,:]
         print('shape of nonconvexities filtered',np.shape(inputs))
         input = [inputs[:,0:self.dim],inputs[:,self.dim:]]
-        input_local = self.find_new_points(input, self.non_convexities_repeat_points, self.non_convexities_repeat,[.04,0.5], 'non_convexities')
+        input_local = self.find_new_points(input, self.non_convexities_repeat_points, self.non_convexities_repeat,[self.non_convexities_perturb,0.5], 'non_convexities')
         # print('inputs3',np.shape(input_local))
         input_local = self.combine_list(input_local)
 
@@ -969,7 +857,7 @@ class DataRecommender():
         sorted_indices = np.argsort(sensitivity_score)[::-1]
         sorted_inputs = inputs[sorted_indices]
         input = [inputs[:,0:self.dim],inputs[:,self.dim:]]
-        input_local = self.find_new_points(input, self.sensitivity_repeat_points, self.sensitivity_repeat,[.04,0.5], 'sensitivity')
+        input_local = self.find_new_points(input, self.sensitivity_repeat_points, self.sensitivity_repeat,[self.sensitivity_perturb,0.5], 'sensitivity')
         input_local = self.combine_list(input_local)
         self.write(rnd, 'sensitivity', input_local)
         # return input_local

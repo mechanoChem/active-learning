@@ -13,39 +13,6 @@ from active_learning.workflow.make_graph import graph
 class Workflow():
 
     def __init__(self,input_path):
-        # self.input_path = input_path
-        # self.dict = Dictionary(input_path)
-        # [self.Model_type,    
-        #  self.Data_Generation, self.Data_Generation_Source, 
-        #  self.restart, self.Input_data, self.Input_alias, 
-        #  self.Output_alias,self.Iterations, self.OutputFolder, 
-        #  self.seed,self.input_dim,self.output_dim,self.derivative_dim,self.config_path] = self.dict.get_category_values('Main')
-        
-        
-        # [self.N_global_pts, self.sample_known_wells,self.wells,
-        #  self.wells_points,self.sample_known_vertices,self.vertices, 
-        #  self.vertice_points] = self.dict.get_category_values('Explore_Parameters')
-
-        # [self.sample_non_convexities,self.non_convexities_repeat, self.non_convexities_repeat_points,self.sample_high_error,
-        # self.high_error_repeat, self.high_error_repeat_points, self.find_wells, self.wells_repeat,self.wells_repeat_points] = self.dict.get_category_values('Exploit_Parameters')
-        # self.construct_model()
-        # self.rnd=0
-        # print('Train surrogate model, round ',self.rnd,'...')
-        # self.train()
-        # for i in range(1,6):
-        #     self.rnd=i
-
-
-        #     if self.rnd == 1 or not self.better_than_prev(self.rnd-1):
-        #         print('Perform hyperparameter search...')
-        #         self.hyperparameter_search(self.rnd)
-        #         # print('Train surrogate model, round ',self.rnd,'...')
-        #         # self.train()
-
-        #     else:
-        #         print('Train surrogate model, round ',self.rnd,'...')
-        #         self.train()
-
         
 
         self.input_path = input_path
@@ -58,16 +25,14 @@ class Workflow():
          self.seed,self.input_dim,self.output_dim,self.derivative_dim,self.config_path,self.T, self.graph,self.reweight,self.reweight_alpha,self.prediction_points] = self.dict.get_category_values('Main')
         
         
-        [self.N_global_pts, self.sample_known_wells,self.wells,
-         self.wells_points,self.sample_known_vertices,self.vertices, 
-         self.vertice_points] = self.dict.get_category_values('Explore_Parameters')
+        [self.N_global_pts, self.sample_external,self.external_path,
+         self.external_points,self.external_perturbation] = self.dict.get_category_values('Explore_Parameters')
 
 
 
-        [self.sample_non_convexities,self.non_convexities_repeat, self.non_convexities_repeat_points,self.sample_high_error,
-        self.high_error_repeat, self.high_error_repeat_points, self.find_wells, self.wells_repeat,self.wells_repeat_points, 
-        self.lowest_free_energy,self.lowest_repeat,self.lowest_free_energy_file,
-        self.sample_sensitivity,self.sensitivity_repeat_points, self.sensitivity_repeat,self.QBC,self.QBC_repeat] = self.dict.get_category_values('Exploit_Parameters')
+        [self.sample_non_convexities,self.sample_high_error,
+         self.find_wells,self.lowest_free_energy, 
+         self.sample_sensitivity,self.QBC] = self.dict.get_individual_keys('Exploit_Parameters',['non_convexities','high_error','find_wells','lowest_free_energy','sensitivity','qbc'])
         if self.restart==False:
             self.rnd=0
             if  os.path.exists(self.OutputFolder + 'training'):
@@ -111,6 +76,7 @@ class Workflow():
         self.recommender.construct_input_types()
         self.first_explore=True
         self.first_exploit=True
+        self.stopping_criteria_met=False
 
         # self.recommender.query_by_committeee(1,2)
 
@@ -155,19 +121,13 @@ class Workflow():
     def explore(self):
         if self.first_explore:
             self.recommender.create_types("billiardwalk")
-            if self.sample_known_wells:
-                self.recommender.create_types('sample_wells')
-            if self.sample_known_wells:
-                self.recommender.create_types('sample_vertices')
+            if self.sample_external:
+                self.recommender.create_types('Externally_supplied_points')
             self.first_explore=False
         self.recommender.explore(self.rnd)
-        if self.sample_known_wells:
-            print('Sampling Wells and End Members')
-            self.recommender.sample_wells(self.rnd)
-        if self.sample_known_vertices:
-            print('Sampling Vertices')
-            self.recommender.sample_vertices(self.rnd)
-        
+        if self.sample_external:
+            self.recommender.sample_external_data(self.rnd)
+
 
 
     
@@ -321,8 +281,23 @@ class Workflow():
         for self.rnd in range (self.rnd,self.Iterations+1):
             #First predict data  
 
-            if self.rnd>1 and self.reweight:
-                self.recommender.reweight_criterion(self.rnd)
+
+
+            if self.rnd>1:
+                improvements = self.recommender.determine_improvement(self.rnd)
+                if self.recommender.stopping_criteria(improvements):
+                    print('Stopping Criteria Met for rnd', self.rnd)
+                    if self.stopping_criteria_met:
+                        print('Stopping criteria Met 2 rounds in a row \n Ending AL')
+                        sys.exit()
+                    else:
+                        self.stopping_criteria_met=True
+
+                else:
+                    self.stopping_criteria_met=False
+            
+                if self.reweight:
+                    self.recommender.reweight_criterion(self.rnd,improvements)
 
             self.step == 'Exploitative'
             print('Exploitative Sampling, round ',self.rnd,'...')

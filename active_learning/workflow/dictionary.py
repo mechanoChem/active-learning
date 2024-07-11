@@ -158,9 +158,8 @@ class Dictionary():
             
 
         # print('exploit params',self.dict['Exploit_Parameters'])
-        true_false += [['Main','restart'],['Main','input_data'],['Main','reweight'],
-                       ['Exploit_Parameters','high_error'],['Explore_Parameters','sample_known_wells'],
-                       ['Explore_Parameters','sample_known_vertices'],['Exploit_Parameters','non_convexities'],
+        true_false += [['Main','restart'],['Main','input_data'],['Main','reweight'],['Explore_Parameters','sample_external'],
+                       ['Exploit_Parameters','high_error'],['Exploit_Parameters','non_convexities'],
                        ['Exploit_Parameters','find_wells'],['Exploit_Parameters','lowest_free_energy'],['Exploit_Parameters','sensitivity'],['Exploit_Parameters','qbc']]
         str_array_inputs += [['Main','input_alias'],['Main','output_alias']]
         int_inputs += [['Main','iterations'],['Main','seed'],['Main','prediction_points'],['Explore_Parameters','global_points']]
@@ -168,26 +167,41 @@ class Dictionary():
 
         if self.dict['Exploit_Parameters']['non_convexities'] == 'True':
             int_array_inputs += [['Exploit_Parameters','non_convexities_repeat'],['Exploit_Parameters','non_convexities_repeat_points']]
+            float_inputs+= [['Exploit_Parameters','non_convexities_perturb_magnitude']]
         if self.dict['Exploit_Parameters']['high_error'] == 'True':
             int_array_inputs += [['Exploit_Parameters','high_error_repeat'],['Exploit_Parameters','high_error_repeat_points']]
+            float_inputs+= [['Exploit_Parameters','high_error_perturb_magnitude']]
         if self.dict['Exploit_Parameters']['find_wells'] == 'True':
             int_array_inputs += [['Exploit_Parameters','wells_repeat'],['Exploit_Parameters','wells_repeat_points']]
+            float_inputs+= [['Exploit_Parameters','wells_perturb_magnitude']]
         if self.dict['Exploit_Parameters']['sensitivity'] == 'True':
             int_array_inputs += [['Exploit_Parameters','sensitivity_repeat'],['Exploit_Parameters','sensitivity_repeat_points']]
-
+            float_inputs+= [['Exploit_Parameters','sensitivity_perturb_magnitude']]
         if self.dict['Exploit_Parameters']['qbc'] == 'True':
-            int_inputs += [['Exploit_Parameters','qbc_points']]
+            int_array_inputs += [['Exploit_Parameters','qbc_repeat'],['Exploit_Parameters','qbc_repeat_points']]
+            float_inputs+= [['Exploit_Parameters','qbc_perturb_magnitude']]
+
+        # if self.dict['Exploit_Parameters']['qbc'] == 'True':
+        #     int_inputs += [['Exploit_Parameters','qbc_points']]
 
         if self.dict['Exploit_Parameters']['lowest_free_energy'] == 'True':
-            int_inputs += [['Exploit_Parameters','lowest_repeat']]
+            int_array_inputs+= [['Exploit_Parameters','lowest_repeat'],['Exploit_Parameters','lowest_repeat_points']]
             paths += [['Exploit_Parameters','lowest_file']]
+            float_inputs+= [['Exploit_Parameters','lowest_perturb_magnitude']]
 
-        if self.dict['Explore_Parameters']['sample_known_wells'] == 'True':
-            int_inputs += [['Explore_Parameters','wells_points']]
-            paths += ([['Explore_Parameters','wells']])
-        if self.dict['Explore_Parameters']['sample_known_vertices'] == 'True':
-            int_inputs += [['Explore_Parameters','vertices_points']]
-            paths += ([['Explore_Parameters','vertices']])
+
+
+        if self.dict['Explore_Parameters']['sample_external'] == 'True':
+            int_inputs += [['Explore_Parameters','external_points']]
+            float_inputs += [['Explore_Parameters','external_perturb_magnitude']]
+            paths += ([['Explore_Parameters','external']])
+
+        # if self.dict['Explore_Parameters']['sample_known_wells'] == 'True':
+        #     int_inputs += [['Explore_Parameters','wells_points']]
+        #     paths += ([['Explore_Parameters','wells']])
+        # if self.dict['Explore_Parameters']['sample_known_vertices'] == 'True':
+        #     int_inputs += [['Explore_Parameters','vertices_points']]
+        #     paths += ([['Explore_Parameters','vertices']])
 
 
 
