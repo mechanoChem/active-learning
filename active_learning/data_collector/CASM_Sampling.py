@@ -86,32 +86,43 @@ class CASM_Sampling(Sampling):
                             mu += np.array([data['<mu({})>'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
                             T += np.array([data['T']]).T.tolist()
                         elif self.version == 'row':    
-                            for i in range(len(data['<comp(a)>'])):
-                                with open(self.OutputFolder + 'data/data_sampled/'+dir+ f'/conditions.{i}/conditions.json', 'r') as conditions_file:
-                                    conditions_data = json.load(conditions_file)
-                                    kappa = conditions_data['order_parameter_quad_pot_target']
-                                    phi = conditions_data['order_parameter_quad_pot_vector']
-                                    phi_subset=number*[0]
-                                    kappa_subset=number*[0]
-                                    mu = number*[0]
-                                    eta = number*[0]
-                                    # eta0 = c
-                                    k=0
-                                    for j in self.relevent_indices:
-                                        eta[k] = data['<order_parameter({})>'.format(j)][i]
-                                        mu[k] =(-2*phi[j]*(eta[k]-kappa[j]))*32
-                                        phi_subset[k] = phi[j]*32*32
-                                        kappa_subset[k] = kappa[j]/32
-                                        T = conditions_data['temperature']
-                                        eta[k] = eta[k]/32
-                                        k+=1
-                                    data_points.append({
-                                        'kappa': kappa_subset,
-                                        'phi': phi_subset,
-                                        'mu': mu,
-                                        'T': T,
-                                        'eta': eta,
-                                    })
+                            monte_path=''
+                            directory = os.path.join(OutputFolder + 'data/data_sampled/round_{}'.format(rnd), dir)
+                        
+                            for filename in os.listdir(directory):
+                                if 'monte' in filename:
+                                    monte_path = os.path.join(directory, filename)
+                            if monte_path !='':
+                                with open(monte_path,'r') as file:
+                                    monte_file = json.load(file)
+                                    driver= monte_file['driver']
+                                    conditions = driver['custom_conditions']
+                                    for i in range(len(data['<comp(a)>'])):
+                                        conditions_data = conditions[i]
+
+                                        kappa = conditions_data['order_parameter_quad_pot_target']
+                                        phi = conditions_data['order_parameter_quad_pot_vector']
+                                        phi_subset=number*[0]
+                                        kappa_subset=number*[0]
+                                        mu = number*[0]
+                                        eta = number*[0]
+                                        # eta0 = c
+                                        k=0
+                                        for j in self.relevent_indices:
+                                            eta[k] = data['<order_parameter({})>'.format(j)][i]
+                                            mu[k] =(-2*phi[j]*(eta[k]-kappa[j]))*32
+                                            phi_subset[k] = phi[j]*32*32
+                                            kappa_subset[k] = kappa[j]/32
+                                            T = conditions_data['temperature']
+                                            eta[k] = eta[k]/32
+                                            k+=1
+                                        data_points.append({
+                                            'kappa': kappa_subset,
+                                            'phi': phi_subset,
+                                            'mu': mu,
+                                            'T': T,
+                                            'eta': eta,
+                                        })
 
 
                     shutil.move(self.OutputFolder + 'data/data_sampled/'+dir,dirname)
@@ -227,7 +238,7 @@ class CASM_Sampling(Sampling):
         # with open('/expanse/lustre/scratch/jholber/temp_project/git/row/active-learning/active_learning/data_collector/monte_settings_row.json.tmpl','r') as tmplFile:          
         #     tmpl = json.load(tmplFile)
 
-        with open('{}/monte_settings_row.json.tmpl'.format(os.path.dirname(__file__)),'r') as tmplFile:
+        with open('{}/monte_settings_zigzag.json.tmpl'.format(os.path.dirname(__file__)),'r') as tmplFile:
                 
             tmpl = json.load(tmplFile)
             for job in range(self.N_jobs):
@@ -334,7 +345,9 @@ class CASM_Sampling(Sampling):
                         'module load cpu/0.15.4',
                         'module load anaconda3',
                         '. $ANACONDA3HOME/etc/profile.d/conda.sh',
-                        'conda activate /home/jholber/.local/conda/envs/CASM',
+                        # 'conda activate /home/jholber/.local/conda/envs/CASM',
+                        'conda activate /home/jholber/.local/conda3/envs/casm_python3_11', 
+                        "export LIBCASM='/home/jholber/.local/conda3/envs/casm_python3_11/lib/libcasm.so'",
                         'cwd=$PWD',
                         'mv {}data/data_sampled/job_$SLURM_ARRAY_TASK_ID {}'.format(self.OutputFolder,self.dir),
                         'cd {}/job_$SLURM_ARRAY_TASK_ID'.format(self.dir),

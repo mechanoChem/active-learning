@@ -107,11 +107,15 @@ def predict_and_save(model,eta,T,title):
     
 
 def graph(rnd, model,dict):
-    [outputFolder,temp,graph] = dict.get_individual_keys('Main',['outputfolder','temp','graph'])
+    [outputFolder,temp,graph,dir_path] = dict.get_individual_keys('Main',['outputfolder','temp','graph','dir_path'])
     model.load_trained_model(rnd)
 
     # full composition range
-    data = '/Users/jamieholber/Desktop/Software/active-learning/tests/LCO_row/2d_slice_rnd21_0_1.txt'
+    # data = '/Users/jamieholber/Desktop/Software/active-learning/tests/LCO_row/2d_slice_rnd21_0_1.txt'
+
+    # data = '/expanse/lustre/scratch/jholber/temp_project/active-learning/tests/LCO_row/2d_slice_rnd21_0_1.txt'
+    data = dir_path + '/graph_points.txt'
+    
     eta = np.genfromtxt(data,dtype=np.float32)[:,:7]
     T = np.ones((np.shape(eta)[0],1))*temp
     title1 = outputFolder+'graphs/rnd{}_full'.format(rnd)

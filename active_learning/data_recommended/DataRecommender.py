@@ -901,10 +901,10 @@ class DataRecommender():
 
         # print(np.shape(predictions))
 
-        variations = np.std(flucuation, axis=1)
+        variations = np.sum(flucuation,axis=1)
 
         # Get the indices of the data points with the largest variations
-        indices = np.argsort(-variations)
+        indices = np.argsort(-variations)[::-1]
         
         data_sorted= data[indices,:]
 

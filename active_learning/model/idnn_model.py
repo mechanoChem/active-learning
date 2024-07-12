@@ -376,6 +376,7 @@ class IDNN_Model(Model):
 
         # sys.path.append(self.config_path)
         sys.path.append(self.transform_path)
+        print(self.transform_path)
         from TransformsModule import transforms 
         # def transforms(x):    
         #     h0 = x[:,0]
