@@ -20,6 +20,7 @@ import pandas as pd
 from scipy.spatial.distance import cdist
 import json
 from math import isnan
+from sklearn.metrics import mean_squared_error
 
 class DataRecommender():
 
@@ -51,6 +52,7 @@ class DataRecommender():
                 data = f.read() 
             self.type_criterion = json.loads(data)
         # self.alpha=100000
+        self.stopping_alpha=0
 
         self.dim=self.inputs_dim-1                
         
@@ -601,7 +603,9 @@ class DataRecommender():
         #return outputs 
 
     def diff_in_mu(self,mu0,mu1):
-        mse = np.linalg.norm(mu1 - mu0, axis=1)
+        # print('mu0',mu0[0:2,:])
+        # print('mu1',mu1[0:2,:])
+        mse = mean_squared_error(mu1,mu0)
         return mse
 
 
@@ -616,20 +620,32 @@ class DataRecommender():
         pred_old = self.model.predict([points[:,:self.dim],points[:,self.dim:]])
         self.model.load_trained_model(rnd-1) # should be rnd or rnd-1? 
 
-        #find actual values of mse 
-        real_data = self.get_trained_points(rnd,points) 
+        #find actual values of mu
+        mu_real = self.get_trained_points(rnd,points) 
 
         #current weights
 
         categories = points[:,-1]
 
-        mse_old = self.diff_in_mu(pred_old[1],real_data)
-        mse_new = self.diff_in_mu(pred_new[1],real_data)
+
+        mse_old = self.diff_in_mu(pred_old[1],mu_real)
+        print('mse_old',mse_old)
+        mse_new = self.diff_in_mu(pred_new[1],mu_real)
+        print('mse_new',mse_new)
+
+        # print('mse_old',mse_old[0:2,:])
+
+        mu_old = pred_old[1]
+        mu_new = pred_new[1]
+        # mu_real = real_data
         
 
-        type_averages_new = {category: np.mean(mse_new[categories == self.type_criterion[category]]) for category in self.type_criterion}
-        type_averages_old = {category: np.mean(mse_old[categories == self.type_criterion[category]]) for category in self.type_criterion}
+        type_averages_new = {category: mean_squared_error(mu_new[categories == self.type_criterion[category]],mu_real[categories == self.type_criterion[category]]) for category in self.type_criterion}
+        type_averages_old = {category: mean_squared_error(mu_old[categories == self.type_criterion[category]],mu_real[categories == self.type_criterion[category]]) for category in self.type_criterion}
 
+
+        print('type_averages_new',type_averages_new)
+        print('type_averages_old',type_averages_old)
 
         # Calculate the average improvement in MSE for each type
         type_improvements = {category: type_averages_old[category] - type_averages_new[category] for category in self.type_criterion}
@@ -637,6 +653,7 @@ class DataRecommender():
 
     def stopping_criteria(self,type_improvements):
         avg_improvement = sum(type_improvements.values())/len(type_improvements)
+        print('avg_improvement',avg_improvement)
         if avg_improvement < self.stopping_alpha:
             return True
         else:

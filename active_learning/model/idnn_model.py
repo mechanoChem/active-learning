@@ -148,7 +148,7 @@ class IDNN_Model(Model):
         etas = np.zeros((2,self.dim))
         T = np.zeros((2,1))
         loaded_model.fit([etas,etas,etas,T],[etas,etas,etas],epochs=2,verbose=0)
-        print(self.outputFolder+ 'training/model_{}/model.weights.h5'.format(rnd))
+        # print(self.outputFolder+ 'training/model_{}/model.weights.h5'.format(rnd))
         loaded_model.load_weights(self.outputFolder+ 'training/model_{}/model.weights.h5'.format(rnd))
         self.model = loaded_model
         return loaded_model
@@ -325,7 +325,7 @@ class IDNN_Model(Model):
             csv_logger = CSVLogger(self.outputFolder+'training/training_{}_{}.txt'.format(rnd,set_i),append=True)
 
         reduceOnPlateau = ReduceLROnPlateau(factor=self.factor,patience=self.patience,min_lr=self.min_lr)
-        selective_logger= SelectiveProgbarLogger(verbose=1, epoch_interval=5)
+        selective_logger= SelectiveProgbarLogger(verbose=1, epoch_interval=50)
         callbackslist = [csv_logger, reduceOnPlateau,selective_logger]
         if EarlyStopping == 'Yes':
             earlyStopping = EarlyStopping(patience=self.Patience)

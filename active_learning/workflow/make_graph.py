@@ -54,6 +54,8 @@ def plot_python(data,title):
     # plt.gca().invert_yaxis()
     plt.savefig('{}_mu.png'.format(title))
 
+    plt.close('all')
+
 
     with open('{}.pxl'.format(title), 'wb') as f:
         pickle.dump(fig2, f)
