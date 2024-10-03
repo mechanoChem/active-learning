@@ -8,9 +8,10 @@ from time import sleep
 def numCurrentJobs(name):
     try:
         num = len(check_output(['squeue','-n',name],stderr=STDOUT).decode("utf-8").split('\n'))-2
+        # print('num',num)
     except:
         num = 1
-        print('Error with numCurrentJobs: ',check_output(['squeue','-n',name],stderr=STDOUT).decode("utf-8"))
+        print('Error with numCurrentJobs')#,check_output(['squeue','-n',name],stderr=STDOUT).decode("utf-8"))
     return num
 
 def checkPending(name):
@@ -27,10 +28,10 @@ def checkPending(name):
     return val
 
 
-def submitJob(command,specs={},is_dnsml=False):
+def submitJob(command,specs={},is_dnsml=False,num=0,slurmdirectory='./'):
 
     # Default values for LSF job script
-    default = {'wall_time':'24:00:00',
+    default = {'wall_time':'4:00:00',
                'nodes':1,
                'ntasks-per-node':1,
                'total_memory':'10G',
@@ -42,7 +43,7 @@ def submitJob(command,specs={},is_dnsml=False):
     default.update(specs)
 
     # Write out job script
-    with open('submit.slrm','w') as fout:
+    with open(f'{slurmdirectory}submit_{num}.slrm','w') as fout:
         fout.write('#!/bin/bash\n#\n')
         fout.write("#SBATCH -t {}                  # wall time\n".format(default['wall_time']))
         if 'account' in default:
@@ -68,7 +69,7 @@ def submitJob(command,specs={},is_dnsml=False):
             fout.write(command)
 
     # Submit script
-    os.system('sbatch submit.slrm')
+    os.system(f'sbatch {slurmdirectory}submit_{num}.slrm')
         
 def waitForAll(name,interval=15):
     sleep(2*interval)

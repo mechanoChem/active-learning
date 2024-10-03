@@ -35,7 +35,6 @@ from active_learning.workflow.dictionary import Dictionary
 directory=sys.argv[7]
 
 input_path = directory+ '/input_predicting.ini'
-print('input path',input_path)
 dictionary = Dictionary(input_path)
 [rnd, step] = dictionary.get_category_values('Restart')
 # rnd= dictionary.

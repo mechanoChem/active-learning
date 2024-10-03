@@ -23,7 +23,7 @@ class IDNN_Model(Model):
          self.lossterms,self.loss_weights,self.optimizer,self.learning,self.lr_decay,
          self.factor, self.patience,self.min_lr,self.EarlyStopping,self.epochs,
          self.batch_size,self.WeightRecent,self.validation_split,
-         self.hyperparameter] = self.dict.get_category_values('IDNN')
+         self.hyperparameter,self.train_new_idnn] = self.dict.get_category_values('IDNN')
 
 
         [self.input_alias,self.output_alias,self.config_path,self.outputFolder,self.dim] = self.dict.get_individual_keys('Main',['input_alias','output_alias','dir_path','outputfolder','input_dim'])
@@ -37,8 +37,10 @@ class IDNN_Model(Model):
                 self.lossterms[i] = None
     
 
+        [self.QBC]  = self.dict.get_individual_keys('Exploit_Parameters',['qbc'])
+    
 
-        self.model = IDNN(self.dim,
+        self.model = IDNN(self.dim-1,
                 self.hidden_units,
                 activation = self.activation_list,
                 transforms=self.IDNN_transforms(),
@@ -46,20 +48,20 @@ class IDNN_Model(Model):
                 unique_inputs=True,
                 final_bias=True)
         self.opt = 'keras.optimizers.' + self.optimizer 
+
+
         self.model.compile(loss=self.lossterms,
                         loss_weights=self.loss_weights,
                         optimizer=eval(self.opt)(learning_rate=self.learning))
-        # self.learning_rate = np.power(10,(np.log10(self.LR_range[1]) - np.log10(self.LR_range[0]))*np.random.rand(1)[0] + np.log10(0.0001),dtype=np.float32)
-    
+
     def predict(self,data):
         data= self.scale_loaded_data(data)
-        data = self.input_columns_to_training(data)
+        data = [data[0],data[0],data[0],data[1]]
         output = self.model.predict(data)
         return self.scale_output_back(output)
     
 
     def array_to_column(self, data):
-        #self.input_alias x,eta,T
         column_list_input = []
         column_list_output = []
         position = 0
@@ -79,13 +81,9 @@ class IDNN_Model(Model):
         # input, output = self.array_to_column(input,output) 
 
         for i in range(np.size(self.input_alias)):
-            # print('scaling ',self.input_alias[i])
             _,_,derivative_dim,dimension,adjust = self.dict.get_category_values(self.input_alias[i])
-            # print(inputs[i] )
             temp = (inputs[i]+adjust[0])*adjust[1] 
             inputs[i] = temp
-            # print(inputs[i])
-        # exit()
         if output == None:
             return inputs
         else:
@@ -98,7 +96,6 @@ class IDNN_Model(Model):
 
     def scale_output_back(self,output):
         derivative,dimensions,adjust = self.dict.get_category_values(self.output_alias[0])
-        # for i in range(np.size(self.output_alias)):
         for i in range(3):
             temp = (output[i]/adjust[1])-adjust[0]
             output[i] = temp
@@ -111,24 +108,43 @@ class IDNN_Model(Model):
             data =  np.load(self.outputFolder + 'data/data_sampled/results{}.npy'.format(rnd),allow_pickle=True)
         else:
             data =  np.load(self.outputFolder + 'data/data_sampled/allResults{}.npy'.format(rnd),allow_pickle=True)
-        
+
         input, output = self.array_to_column(data)
 
         return self.scale_loaded_data(input, output)
         
-    def loss(self,rnd):
-        inputs,output = self.load_data(rnd,singleRnd=True) #Params[0] returns input, Params[1] returns output
+    def loss(self,rnd,singleRnd=True):
+        inputs,output = self.load_data(rnd,singleRnd) #Params[0] returns input, Params[1] returns output
         inputs,output = self.input_columns_to_training(inputs,output)
-        return self.model.evaluate(inputs,output)
+        return self.model_evaluate(inputs,output)
 
         
+    def model_evaluate(self,input,output):
+        return self.model.evaluate(input,output)
+
+    def set_params(self,rnd):
+        with open(self.outputFolder + 'training/model_{}/params.json'.format(rnd-1)) as json_file:
+            params = json.load(json_file)
+        [self.layers,self.neurons,self.activation_list,self.dropout,self.optimizer,self.learning,self.lr_decay,self.factor,self.patience,self.min_lr,self.epochs,self.batch_size] = params
+        self.hidden_units = self.layers*[self.neurons]
+        
+        self.model = IDNN(self.dim,
+                self.hidden_units,
+                activation = self.activation_list,
+                transforms=self.IDNN_transforms(),
+                dropout=self.dropout,
+                unique_inputs=True,
+                final_bias=True)
+        self.opt = 'keras.optimizers.RMSprop'
+        self.model.compile(loss=self.lossterms,
+                        loss_weights=self.loss_weights,
+                        optimizer=eval(self.opt)(learning_rate=self.learning))
 
 
     def load_trained_model(self,rnd):
-        # readparams = open(self.outputFolder + 'training/model_{}/params.json'.format(rnd))
         with open(self.outputFolder + 'training/model_{}/params.json'.format(rnd)) as json_file:
             params = json.load(json_file)
-        # print('params:',params)
+
         [self.layers,self.neurons,self.activation_list,self.dropout,self.optimizer,self.learning,self.lr_decay,self.factor,self.patience,self.min_lr,self.epochs,self.batch_size] = params
         self.hidden_units = self.layers*[self.neurons]
         
@@ -139,17 +155,14 @@ class IDNN_Model(Model):
                 dropout=self.dropout,
                 unique_inputs=True,
                 final_bias=True)
-        # self.opt = 'keras.optimizers.' + self.optimizer 
         self.opt = 'keras.optimizers.RMSprop'
+        loaded_model.load_weights(self.outputFolder+ 'training/model_{}/model.weights.h5'.format(rnd))
         loaded_model.compile(loss=self.lossterms,
                         loss_weights=self.loss_weights,
                         optimizer=eval(self.opt)(learning_rate=self.learning))
 
         etas = np.zeros((2,self.dim))
         T = np.zeros((2,1))
-        loaded_model.fit([etas,etas,etas,T],[etas,etas,etas],epochs=2,verbose=0)
-        # print(self.outputFolder+ 'training/model_{}/model.weights.h5'.format(rnd))
-        loaded_model.load_weights(self.outputFolder+ 'training/model_{}/model.weights.h5'.format(rnd))
         self.model = loaded_model
         return loaded_model
 
@@ -192,8 +205,6 @@ class IDNN_Model(Model):
         else:
             optimizer = random.choice(optimizer)
 
-        # print('optimizer',optimizer)
-
         rand_model = IDNN(self.dim,
                      hidden_units,
                      activation=activation_list,
@@ -216,14 +227,11 @@ class IDNN_Model(Model):
             outfile.write(jsonparams)
 
 
-
-        data = np.loadtxt(self.outputFolder+'data/data_recommended/global_prediction_points_rnd'+str(rnd)+'.txt')
-        # self.model.predict([eta,T])[1]
-        prediction  = self.predict([data[:,0:self.dim-1],data[:,self.dim-1:]])
-        # print("prediction 0",np.shape((prediction[0])))
-        # print("prediction 1",np.shape((prediction[1])))
-        pred = np.hstack((prediction[0],prediction[1]))
-        np.savetxt(self.outputFolder + 'training/prediction_{}_{}.json'.format(rnd,set_i),pred) 
+        if self.QBC:
+            data = np.loadtxt(self.outputFolder+'data/data_recommended/global_prediction_points_rnd'+str(rnd)+'.txt')
+            prediction  = self.predict([data[:,0:self.dim-1],data[:,self.dim-1:]])
+            pred = np.hstack((prediction[0],prediction[1]))
+            np.savetxt(self.outputFolder + 'training/predictions/prediction_{}_{}.json'.format(rnd,set_i),pred) 
 
 
         
@@ -241,15 +249,16 @@ class IDNN_Model(Model):
         with open(self.outputFolder + 'training/model_{}/params.json'.format(rnd), "w") as outfile:
             outfile.write(jsonparams)
 
-        # np.savetxt(self.outputFolder + 'training/model_{}/params'.format(rnd,),params)
-        # ,save_format='tf'
-
     
     def train(self,rnd):
         inputs, output = self.load_data(rnd,singleRnd=False) 
-        # print('Reloading rnd 0')
-        # inputs, output = self.load_data(0,singleRnd=True) 
-        self.model,_ = self.surrogate_training(rnd,self.model,inputs,output)
+        if self.train_new_idnn and rnd>0:
+            print('training new idnn')
+            self.set_params(rnd)
+
+
+        self.model,valid_loss = self.surrogate_training(rnd,self.model,inputs,output)
+        return valid_loss
     
 
     def input_columns_to_training(self,inputs,output=None, unique_inputs=True):
@@ -260,7 +269,6 @@ class IDNN_Model(Model):
         k=0
         for i in range(np.size(self.input_alias)):
             _,_,derivative_dim,dimension,adjust = self.dict.get_category_values(self.input_alias[i])
-            # input[:][i] = (input[:][i]+adjust[0])*adjust[1]
             if derivative_dim:
                 if j==0:
                     input_new = inputs[:][i]
@@ -275,9 +283,8 @@ class IDNN_Model(Model):
                 k+=1
         
         if unique_inputs:
-            # input_zeros = np.zeros(np.shape(input_new))
-            # inputs = [input_zeros,input_new,input_new,input_non_derivative]
-            inputs = [input_new,input_new,input_new,input_non_derivative]
+            input_zeros = np.zeros(np.shape(input_new))
+            inputs = [input_zeros,input_new,input_new,input_non_derivative]
         else:
             inputs = [input_new,input_non_derivative]
 
@@ -297,61 +304,49 @@ class IDNN_Model(Model):
 
     def surrogate_training(self,rnd,model,inputs,output,set_i=None,learning_rate='default'):
 
+
         if learning_rate == 'default':
             learning_rate = self.learning
 
         
         inputs,output = self.input_columns_to_training(inputs,output)
-        
         inds = np.arange(inputs[0].shape[1])
 
-        if self.WeightRecent == 'Yes':
+        if self.WeightRecent and rnd>0:
+            print('WeightRecent')
             # weight the most recent high error points as high as all the other points
-            n_points = len(inputs)
+            n_points = inputs[0].shape[1]#len(inputs[0])
             sample_weight = np.ones(n_points)
+            input,output = self.load_data(rnd,singleRnd=True)
+            recentpoints = inputs[0].shape[1]
+            print('n_points',n_points)
+            print('recentpoints',recentpoints)
             if rnd > 0:
-                sample_weight[-1000:] = max(1,(n_points-1000)/(2*1000))
+                sample_weight[-recentpoints:] = max(1,(n_points-recentpoints)/(recentpoints))
             sample_weight = sample_weight[inds]
 
 
+
         # trains
-        lr_decay = self.lr_decay#**rnd
+        lr_decay = self.lr_decay**rnd
         model.compile(loss=self.lossterms,
                         loss_weights=self.loss_weights,
                         optimizer=eval(self.opt)(learning_rate=learning_rate*lr_decay))
         if set_i==None:
-            csv_logger = CSVLogger(self.outputFolder+'training/training_{}.txt'.format(rnd),append=True)
+            csv_logger = CSVLogger(self.outputFolder+'training/trainings/training_{}.txt'.format(rnd),append=True)
         else:
-            csv_logger = CSVLogger(self.outputFolder+'training/training_{}_{}.txt'.format(rnd,set_i),append=True)
+            csv_logger = CSVLogger(self.outputFolder+'training/trainings/training_{}_{}.txt'.format(rnd,set_i),append=True)
 
         reduceOnPlateau = ReduceLROnPlateau(factor=self.factor,patience=self.patience,min_lr=self.min_lr)
         selective_logger= SelectiveProgbarLogger(verbose=1, epoch_interval=50)
         callbackslist = [csv_logger, reduceOnPlateau,selective_logger]
-        if EarlyStopping == 'Yes':
-            earlyStopping = EarlyStopping(patience=self.Patience)
+        if EarlyStopping:
+            print('Early stopping')
+            earlyStopping = EarlyStopping(patience=self.patience*2)
             callbackslist.append(earlyStopping)
 
-        # print('Training...')
-        # print('model training',model)
-        # print(input)
-        # print(output)
-
-        # print('surrogate training')
-        # print('inputs',inputs)
-        # print('outputs',output)
-
-        # self.model.compile(loss=['mse','mse',None],
-        #     loss_weights=[0.01,1,None],
-        #     optimizer=keras.optimizers.RMSprop(lr=.001))
-
-        # history= model.fit(inputs,output,
-        #  validation_split=.25,
-        #  epochs=100,
-        #  batch_size=100,
-        #  callbacks=callbackslist)
-
         
-        if self.WeightRecent == 'Yes':
+        if self.WeightRecent and rnd>0:
             history =model.fit(inputs,
                     output,
                     validation_split=self.validation_split,
@@ -372,52 +367,48 @@ class IDNN_Model(Model):
         valid_loss = history.history['val_loss'][-1]
         return model, valid_loss
     
+    def load_data_no_scale(self,rnd,singleRnd=True):
+        if singleRnd:
+            data =  np.load(self.outputFolder + 'data/data_sampled/results{}.npy'.format(rnd),allow_pickle=True)
+        else:
+            data =  np.load(self.outputFolder + 'data/data_sampled/allResults{}.npy'.format(rnd),allow_pickle=True)
+        
+        input, output = self.array_to_column(data)
+
+        return input,output
+
     def IDNN_transforms(self):
 
-        # sys.path.append(self.config_path)
-        sys.path.append(self.transform_path)
-        print(self.transform_path)
-        from TransformsModule import transforms 
-        # def transforms(x):    
-        #     h0 = x[:,0]
-        #     h1 = 1./3.*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2)
-        #     h2 = 1./3.*(x[:,1]**4 + x[:,2]**4 + x[:,3]**4)
-        #     h3 = 1./3.*((x[:,1]**2)*(x[:,2]**2 + x[:,3]**2) + (x[:,2]**2*x[:,3]**2))
-        #     h4 = 1./3.*(x[:,1]**6 + x[:,2]**6 + x[:,3]**6)
-        #     h5 = 1./6.*((x[:,1]**4)*( x[:,2]**2 + x[:,3]**2) +(x[:,2]**4)*( x[:,1]**2 + x[:,3]**2)+(x[:,3]**4)*( x[:,2]**2 + x[:,1]**2)  )            
-        #     h6 = (x[:,1]**2)*(x[:,2]**2)*(x[:,3]**2)
-            
-        #     return [h0,h1,h2,h3,h4,h5,h6]
 
-        # def transforms(x):    
-        #     h0 = x[:,0]
-        #     h1 = 2./3.*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2 +
-        #                 x[:,4]**2 + x[:,5]**2 + x[:,6]**2)
-        #     h2 = 8./3.*(x[:,1]**4 + x[:,2]**4 + x[:,3]**4 +
-        #                 x[:,4]**4 + x[:,5]**4 + x[:,6]**4)
-        #     h3 = 4./3.*((x[:,1]**2 + x[:,2]**2)*
-        #                 (x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) +
-        #                 (x[:,3]**2 + x[:,6]**2)*(x[:,4]**2 + x[:,5]**2))
-        #     h4 = 16./3.*(x[:,1]**2*x[:,2]**2 + x[:,3]**2*x[:,6]**2 + x[:,4]**2*x[:,5]**2)
-        #     h5 = 32./3.*(x[:,1]**6 + x[:,2]**6 + x[:,3]**6 +
-        #                     x[:,4]**6 + x[:,5]**6 + x[:,6]**6)
-        #     h6 = 8./3.*((x[:,1]**4 + x[:,2]**4)*
-        #                 (x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) +
-        #                 (x[:,3]**4 + x[:,6]**4)*(x[:,4]**2 + x[:,5]**2) + 
-        #                 (x[:,1]**2 + x[:,2]**2)*
-        #                 (x[:,3]**4 + x[:,4]**4 + x[:,5]**4 + x[:,6]**4) +
-        #                 (x[:,3]**2 + x[:,6]**2)*(x[:,4]**4 + x[:,5]**4))
-        #     h7 = 16./3.*(x[:,1]**2*x[:,2]**2*(x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) + 
-        #                     x[:,3]**2*x[:,6]**2*(x[:,1]**2 + x[:,2]**2 + x[:,4]**2 + x[:,5]**2) + 
-        #                     x[:,4]**2*x[:,5]**2*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2 + x[:,6]**2))
-        #     h8 = 32./3.*(x[:,1]**4*x[:,2]**2 + x[:,3]**4*x[:,6]**2 + x[:,4]**4*x[:,5]**2 +
-        #                     x[:,1]**2*x[:,2]**4 + x[:,3]**2*x[:,6]**4 + x[:,4]**2*x[:,5]**4)
-        #     h9 = 8.*(x[:,1]**2 + x[:,2]**2)*(x[:,3]**2 + x[:,6]**2)*(x[:,4]**2 + x[:,5]**2)
-        #     h10 = 64./5.*((x[:,1]**2 - x[:,2]**2)*(x[:,3]*x[:,5] + x[:,4]*x[:,6])*(x[:,3]*x[:,4] - x[:,5]*x[:,6]) +
-        #                     x[:,1]*x[:,2]*(x[:,3]**2 - x[:,6]**2)*(x[:,4]**2 - x[:,5]**2))
-        #     h11 = 64.*np.sqrt(5)*x[:,1]*x[:,2]*x[:,3]*x[:,4]*x[:,5]*x[:,6]
+        def transforms(x):    
+            h0 = x[:,0]
+            h1 = 2./3.*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2 +
+                        x[:,4]**2 + x[:,5]**2 + x[:,6]**2)
+            h2 = 8./3.*(x[:,1]**4 + x[:,2]**4 + x[:,3]**4 +
+                        x[:,4]**4 + x[:,5]**4 + x[:,6]**4)
+            h3 = 4./3.*((x[:,1]**2 + x[:,2]**2)*
+                        (x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) +
+                        (x[:,3]**2 + x[:,6]**2)*(x[:,4]**2 + x[:,5]**2))
+            h4 = 16./3.*(x[:,1]**2*x[:,2]**2 + x[:,3]**2*x[:,6]**2 + x[:,4]**2*x[:,5]**2)
+            h5 = 32./3.*(x[:,1]**6 + x[:,2]**6 + x[:,3]**6 +
+                            x[:,4]**6 + x[:,5]**6 + x[:,6]**6)
+            h6 = 8./3.*((x[:,1]**4 + x[:,2]**4)*
+                        (x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) +
+                        (x[:,3]**4 + x[:,6]**4)*(x[:,4]**2 + x[:,5]**2) + 
+                        (x[:,1]**2 + x[:,2]**2)*
+                        (x[:,3]**4 + x[:,4]**4 + x[:,5]**4 + x[:,6]**4) +
+                        (x[:,3]**2 + x[:,6]**2)*(x[:,4]**4 + x[:,5]**4))
+            h7 = 16./3.*(x[:,1]**2*x[:,2]**2*(x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) + 
+                            x[:,3]**2*x[:,6]**2*(x[:,1]**2 + x[:,2]**2 + x[:,4]**2 + x[:,5]**2) + 
+                            x[:,4]**2*x[:,5]**2*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2 + x[:,6]**2))
+            h8 = 32./3.*(x[:,1]**4*x[:,2]**2 + x[:,3]**4*x[:,6]**2 + x[:,4]**4*x[:,5]**2 +
+                            x[:,1]**2*x[:,2]**4 + x[:,3]**2*x[:,6]**4 + x[:,4]**2*x[:,5]**4)
+            h9 = 8.*(x[:,1]**2 + x[:,2]**2)*(x[:,3]**2 + x[:,6]**2)*(x[:,4]**2 + x[:,5]**2)
+            h10 = 64./5.*((x[:,1]**2 - x[:,2]**2)*(x[:,3]*x[:,5] + x[:,4]*x[:,6])*(x[:,3]*x[:,4] - x[:,5]*x[:,6]) +
+                            x[:,1]*x[:,2]*(x[:,3]**2 - x[:,6]**2)*(x[:,4]**2 - x[:,5]**2))
+            h11 = 64.*np.sqrt(5)*x[:,1]*x[:,2]*x[:,3]*x[:,4]*x[:,5]*x[:,6]
             
-        #     return [h0,h1,h2,h3,h4,h5,h6,h7,h8,h9,h10,h11]
+            return [h0,h1,h2,h3,h4,h5,h6,h7,h8,h9,h10,h11]
 
         return transforms
     

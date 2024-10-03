@@ -4,30 +4,21 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Input, Dense, Dropout, Concatenate
 import tensorflow.keras.backend as K
 from active_learning.model.transform_layer import Transform
+from tensorflow.keras import layers, regularizers
+
 
 
 class IDNN(tf.keras.Model):
-    def __init__(self, input_dim, hidden_units, activation='softplus', dropout=None, transforms=None, unique_inputs=False, final_bias=False):
+    def __init__(self, input_dim, hidden_units, activation='softplus', dropout=None, transforms=None, unique_inputs=False, final_bias=False, reg=0.01):
         super().__init__()
         
         self.transforms = transforms
         self.unique_inputs = unique_inputs
 
-        # Define the input layers
-        if self.unique_inputs:
-            self.input_layer_1 = Input(shape=(input_dim,))
-            self.input_layer_2 = Input(shape=(input_dim,))
-            self.input_layer_3 = Input(shape=(input_dim,))
-            self.input_layer_4 = Input(shape=(input_dim,))
-        else:
-            self.input_layer_1 = Input(shape=(input_dim,))
-            self.input_layer_4 = Input(shape=(input_dim,))
-
-        # Define dense layers
         self.dnn_layers = []
-        self.dnn_layers.append(Dense(hidden_units[0], activation=activation[0]))
+        self.dnn_layers.append(Dense(hidden_units[0], activation=activation[0], kernel_regularizer=regularizers.l1(reg)))
         for i in range(1, len(hidden_units)):
-            self.dnn_layers.append(Dense(hidden_units[i], activation=activation[i]))
+            self.dnn_layers.append(Dense(hidden_units[i], activation=activation[i], kernel_regularizer=regularizers.l1(reg)))
             if dropout:
                 self.dnn_layers.append(Dropout(dropout))
         self.dnn_layers.append(Dense(1, use_bias=final_bias))

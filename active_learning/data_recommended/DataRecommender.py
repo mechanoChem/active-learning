@@ -29,8 +29,7 @@ class DataRecommender():
         self.model = model
         [self.N_global_pts, self.sample_external,self.external_path,
          self.external_points,self.external_perturbation] = self.dict.get_category_values('Explore_Parameters')
-        # [self.inputs_alias,self.OutputFolder] = self.dict.get_individual_keys(['input_alias','OutputFolder'])
-        
+
         [self.sample_non_convexities,self.non_convexities_repeat, self.non_convexities_repeat_points,self.non_convexities_perturb,self.sample_high_error,
         self.high_error_repeat, self.high_error_repeat_points, self.high_error_perturb, self.sample_find_wells, self.wells_repeat,
         self.wells_repeat_points,self.wells_perturb, self.lowest_free_energy,self.lowest_repeat,self.lowest_repeat_points, self.lowest_free_energy_file,self.lowest_perturb,
@@ -51,13 +50,13 @@ class DataRecommender():
             with open(self.OutputFolder+'data/data_recommended/types.txt') as f: 
                 data = f.read() 
             self.type_criterion = json.loads(data)
-        # self.alpha=100000
         self.stopping_alpha=0
-
+        self.total_global=0
         self.dim=self.inputs_dim-1                
         
     def create_types(self,type):   
         self.type_criterion[type] = len(self.type_criterion)
+        print(' self.type_criterion',self.type_criterion)
 
         self.weights = np.ones(len(self.type_criterion))
         with open(self.OutputFolder+'data/data_recommended/types.txt', 'w') as file: 
@@ -65,6 +64,9 @@ class DataRecommender():
 
     def write(self,rnd,type,output):
         value=self.type_criterion[type]
+        print('Output shape before checking output for being inbounds',np.shape(output))
+        output = self.keep_good_output(output)
+        print('Output shape after checking output for being inbounds',np.shape(output))
             
 
         output = np.hstack((output,self.type_criterion[type]*np.ones((np.shape(output)[0],1))))
@@ -72,15 +74,360 @@ class DataRecommender():
 
         np.savetxt(self.OutputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt',output,fmt='%.12f',
                     header=self.header)
+                    
 
         if os.path.isfile(self.OutputFolder+'data/data_recommended/initial_rnd'+str(rnd)+'.txt'):
             allResults = np.loadtxt(self.OutputFolder+'data/data_recommended/initial_rnd'+str(rnd)+'.txt')
-            output = np.vstack((allResults,output))
+            if allResults.size != 0:  # allResults is not empty
+                output = np.vstack((allResults, output))
         np.savetxt(self.OutputFolder+'data/data_recommended/initial_rnd'+str(rnd)+'.txt',
                     output,
                     fmt='%.12f',
                     header=self.header)
+    
+    def sample_wells(self, rnd):
+        # self.sample_external_data(rnd,self.wells,[.15,0.5],'sample_wells')
+        etaW = np.zeros((2*self.dim+1,self.dim))
+        #added an extra point to be at (0.5,0)
 
+        # wells
+        etaW[:,0] = 0.5
+        # etaW[2,1] =0.425
+        for i in range(1,self.dim):
+            etaW[2*i,i] = 0.475
+            etaW[2*i+1,i] = -0.475
+        # end members
+        etaW[0,0] = .075
+        etaW[1,0] = .925
+        # etaW[:,0] = np.linspace(0.1,0.9,14)
+
+        # define bias parameters
+        if rnd<100:
+            kappaW = etaW
+        else:
+            phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
+            muW = self.model.predict([etaW,T])[1]
+            kappaW = etaW + 0.5*muW/phi
+        # print('well points',self.wells_points)
+        # print('weight',self.weights[self.type_criterion['sample_wells']])
+        N_w = round(self.external_points*self.weights[self.type_criterion['sample_wells']])  #35 #50
+        if N_w < 1:
+            N_w=1
+        # print('N_w',N_w)
+        # print('kappaW',kappaW)
+        kappaW = np.repeat(kappaW,N_w,axis=0)
+        # print('kappaW',kappaW)
+        kappaW[:,0]  = kappaW[:,0]+ .05*(np.random.rand(*kappaW[:,0].shape)-0.5)
+        for i in range(1,self.dim):
+            #only perturb points that are already set to 0.425
+            kappaW[:,i]  = kappaW[:,i]+ .1*np.abs(kappaW[:,i])/.425*(np.random.rand(*kappaW[:,i].shape)-0.5)
+        # print('kappaW',kappaW)
+        
+        #perturb points at x=0.5 by plus or minus .05
+        # print('rand rand', np.random.rand(*kappaW[N_w*2:,1:].shape)-0.5)
+
+        kappaW[N_w*2:,1:] += .005*rnd*(np.random.rand(*kappaW[N_w*2:,1:].shape)-0.5)
+
+        # #perturb points near x=0 by plus or minus x
+        kappaW[0:N_w,1:]  += 2*kappaW[0:N_w,0:1]*(np.random.rand(*kappaW[0:N_w,1:].shape)-0.5)
+        # perturb points near x=1 by plus or minus (1-x)
+        kappaW[N_w:N_w*2,1:] += 2*(1-kappaW[N_w:N_w*2,0:1])*(np.random.rand(*kappaW[N_w:N_w*2,1:].shape)-0.5)
+
+        # print('kappaW',kappaW)
+
+
+
+        kappaW  = kappaW+ self.external_perturbation*(np.random.rand(*kappaW.shape)-0.5)
+
+        temp = self.T*np.ones(((2*self.dim+1)*N_w,1))
+
+        def subtract_largest(arr, value=0.15):
+            # Iterate through each row of the array
+            for row in arr:
+                # Find the index of the largest element in the row
+                max_index = np.argmax(np.abs(row[1:7]))
+                # print('row',row)
+                # print('max_index',max_index)
+                # Subtract the value from the largest element
+                if row[max_index+1] > 0.2:
+                    row[max_index+1] -= value*np.random.random()
+                if row[max_index+1] < -0.2:
+                    row[max_index+1] += value*np.random.random()
+                if np.abs(row[max_index+1]) < 0.2:
+                    row[max_index+1] = row[max_index+1]/4
+                # print('new row',row)
+            return arr
+        
+
+        I =  [not item for item in self.find_good_output(kappaW)] #points that are not in bounds
+        # print('I',I)
+        # print('bad points', kappaW[I,:])
+        i=0
+        while i < 5 and sum(I) >0:
+            # print('sample wells finding more inbound points')
+            # print('sumI',sum(I))
+            i+=1
+            kappaW[I,:] = subtract_largest(kappaW[I,:])
+            I =  [not item for item in self.find_good_output(kappaW)]
+            # print('I',I)
+            # print('kappaW',kappaW)
+        # print('bad points', kappaW[I,:])
+        
+
+        input_local = np.hstack((kappaW,temp))
+        
+        self.write(rnd, 'sample_wells', input_local)
+           
+    def sample_vertices(self,rnd):
+        # self.sample_external_data(rnd,self.vertices,[-.05,0],'sample_vertices')
+        # etaB = np.zeros((2,self.dim))
+        # T = self.T*np.ones((1,1))
+        # # wells
+        # etaB[:,0] = 0.5
+        # for i in range(1,2):
+        #     etaB[2*i-2,i] = 0.5
+        #     etaB[2*i-1,i] = -0.5
+        # if rnd<100:
+        #     kappaB = etaB
+        # else:
+        #     phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
+        #     muB = self.model.predict([etaB,T])[1]
+        #     kappaB = etaB + 0.5*muB/phi
+
+        N_w2 = round(self.external_points*self.weights[self.type_criterion['sample_vertices']]) # Number of random points per vertex
+        if N_w2<1:
+            N_w2=1
+        kappaW2 = np.zeros(((self.dim-1)*N_w2,self.dim))
+        temp = self.T*np.ones(((self.dim-1)*N_w2,1))
+        kappaW2[:,0] = 0.5
+        kappaW2 +=.005*rnd*(np.random.rand(*kappaW2.shape)-0.5) #random perturbation
+     
+        # between += 0.5
+
+        for i in range(1,self.dim):
+
+            kappaW2[(i-1)*N_w2:i*N_w2,i] = (np.random.rand(*kappaW2[(i-1)*N_w2:i*N_w2,i].shape)-0.5)  # Random between positive and negative well (ie pos and neg 0.5)
+        
+        I =  [not item for item in self.find_good_output(kappaW2)] #points that are not in bounds
+        # print('I',I)
+        i=0
+        j=sum(I)
+        while i < 5 and sum(I) >0:
+            # print('sample vertices finding more inbound points')
+            i+=1
+            kappaW2[I,:] = kappaW2[I,:]+ .05*(np.random.rand(*kappaW2[I,:].shape)-0.5)
+            I =  [not item for item in self.find_good_output(kappaW2)]
+            # print('I',I)
+        
+        
+        input_local = np.hstack((kappaW2,temp))
+
+
+        self.write(rnd, 'sample_vertices', input_local)
+
+    # def sample_wells(self, rnd):
+    #     # self.sample_external_data(rnd,self.wells,[.15,0.5],'sample_wells')
+    #     etaW = np.zeros((2*self.dim,self.dim))
+
+    #     # wells
+    #     etaW[:,0] = 0.5
+    #     for i in range(1,self.dim):
+    #         etaW[2*i,i] = 0.425
+    #         etaW[2*i+1,i] = -0.425
+    #     # end members
+    #     etaW[0,0] = 0.075
+    #     etaW[1,0] = 0.925
+    #     # etaW[:,0] = np.linspace(0.1,0.9,14)
+
+    #     # define bias parameters
+    #     if rnd<100:
+    #         kappaW = etaW
+    #     else:
+    #         phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
+    #         muW = self.model.predict([etaW,T])[1]
+    #         kappaW = etaW + 0.5*muW/phi
+    #     # print('well points',self.wells_points)
+    #     # print('weight',self.weights[self.type_criterion['sample_wells']])
+    #     N_w = round(self.external_points*self.weights[self.type_criterion['sample_wells']])  #35 #50
+    #     if N_w < 1:
+    #         N_w=1
+    #     # print('N_w',N_w)
+    #     kappaW = np.repeat(kappaW,N_w,axis=0)
+    #     kappaW  += self.external_perturbation*(np.random.rand(*kappaW.shape)-0.5)
+    #     # kappaW  += (.05+.01*rnd)*(np.random.rand(*kappaW.shape)-0.5)
+    #     temp = self.T*np.ones((2*self.dim*N_w,1))
+    #     input_local = np.hstack((kappaW,temp))
+    #     # print('size of sample wells',np.shape(input_local))
+    #     self.write(rnd, 'sample_wells', input_local)
+           
+    # def sample_vertices(self,rnd):
+    #     # self.sample_external_data(rnd,self.vertices,[-.05,0],'sample_vertices')
+    #     etaB = np.zeros((2*(self.dim-1),self.dim))
+    #     # wells
+    #     etaB[:,0] = 0.5
+    #     for i in range(1,self.dim):
+    #         etaB[2*i-2,i] = 0.5
+    #         etaB[2*i-1,i] = -0.5
+    #     if rnd<100:
+    #         kappaB = etaB
+    #     else:
+    #         phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
+    #         muB = self.model.predict([etaB,T])[1]
+    #         kappaB = etaB + 0.5*muB/phi
+
+    #     N_w2 = round(self.external_points*self.weights[self.type_criterion['sample_vertices']]) # Number of random points per vertex
+    #     if N_w2<10:
+    #         N_w2=10
+    #     kappaW2 = np.zeros(((self.dim-1)*N_w2,self.dim))
+    #     temp = self.T*np.ones(((self.dim-1)*N_w2,1))
+    #     kappaW2[:,0] = kappaB[0,0]
+    #     kappaW2 +=self.external_perturbation*(np.random.rand(*kappaW2.shape)-0.5) 
+    #     # kappaW2 += (.05+.01*rnd)*(np.random.rand(*kappaW2.shape)-0.5) # Small random perterbation
+    #     for i in range(1,self.dim):
+    #         kappaW2[(i-1)*N_w2:i*N_w2,i] = (np.random.rand(*kappaW2[(i-1)*N_w2:i*N_w2,i].shape)-0.5)  # Random between positive and negative well (ie pos and neg 0.5)
+    #         # for j in range(2*N_w2):
+    #             # kappaW2[2*(i-1)*N_w2 + j,i] = np.random.rand()*(kappaB[2*i-2,i] - kappaB[2*i-1,i]) + kappaB[2*i-1,i] # Random between positive and negative well
+    #     input_local = np.hstack((kappaW2,temp))
+    #     self.write(rnd, 'sample_vertices', input_local)
+
+    # def sample_wells(self, rnd):
+    #     # self.sample_external_data(rnd,self.wells,[.15,0.5],'sample_wells')
+    #     etaW = np.zeros((2*self.dim,self.dim))
+    #     T = self.T*np.ones((3,1))
+    #     # wells
+    #     etaW[:,0] = 0.5
+    #     # etaW[2,1] =0.425
+    #     for i in range(1,self.dim):
+    #         etaW[2*i,i] = 0.425
+    #         etaW[2*i+1,i] = -0.425
+    #     # end members
+    #     etaW[0,0] = .075
+    #     etaW[1,0] = .925
+    #     # etaW[:,0] = np.linspace(0.1,0.9,14)
+
+    #     # define bias parameters
+    #     if rnd<100:
+    #         kappaW = etaW
+    #     else:
+    #         phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
+    #         muW = self.model.predict([etaW,T])[1]
+    #         kappaW = etaW + 0.5*muW/phi
+    #     # print('well points',self.wells_points)
+    #     # print('weight',self.weights[self.type_criterion['sample_wells']])
+    #     N_w = round(self.external_points*self.weights[self.type_criterion['sample_wells']])  #35 #50
+    #     if N_w < 1:
+    #         N_w=1
+    #     # print('N_w',N_w)
+    #     kappaW = np.repeat(kappaW,N_w,axis=0)
+    #     print('kappaW',kappaW)
+    #     kappaW[:,0]  = kappaW[:,0]+ .15*(np.random.rand(*kappaW[:,0].shape)-0.5)
+    #     for i in range(1,self.dim):
+    #         kappaW[:,i]  = kappaW[:,i]+ .1*np.abs(kappaW[:,i])/.425*(np.random.rand(*kappaW[:,i].shape)-0.5)
+        
+        
+    #     #
+    #     kappaW[N_w*2:,1:] += .05*(np.random.rand(*kappaW[N_w*2,1:].shape)-0.5)
+
+    #     # #perturb points near x=0 by plus or minus x
+    #     print('shape', np.shape(2*kappaW[0:N_w,0:1]*np.random.rand(*kappaW[0:N_w,1:].shape)-0.5))
+
+    #     kappaW[0:N_w,1:]  += 2*kappaW[0:N_w,0:1]*(np.random.rand(*kappaW[0:N_w,1:].shape)-0.5)
+    #     # perturb points near x=1 by plus or minus (1-x)
+    #     kappaW[N_w:N_w*2,1:] += 2*(1-kappaW[N_w:N_w*2,0:1])*(np.random.rand(*kappaW[N_w:N_w*2,1:].shape)-0.5)
+
+
+
+
+    #     # kappaW  = kappaW+ self.external_perturbation*(np.random.rand(*kappaW.shape)-0.5)
+    #     print('kappa',kappaW)
+        
+    #     temp = self.T*np.ones((2*self.dim*N_w,1))
+
+    #     def subtract_largest(arr, value=0.15):
+    #         # Iterate through each row of the array
+    #         for row in arr:
+    #             # Find the index of the largest element in the row
+    #             max_index = np.argmax(np.abs(row[1:7]))
+    #             # Subtract the value from the largest element
+    #             if row[max_index+1] > 0.2:
+    #                 row[max_index+1] -= value*np.random.random()
+    #             if row[max_index+1] < 0.2:
+    #                 row[max_index+1] += value*np.random.random()
+    #             if np.abs(row[max_index+1]) < 0.2:
+    #                 row[max_index+1] = row[max_index+1]/2
+    #         return arr
+        
+
+    #     I =  [not item for item in self.find_good_output(kappaW)] #points that are not in bounds
+    #     print('I',I)
+    #     print('bad points', kappaW[I,:])
+    #     i=0
+    #     while i < 5 and sum(I) >0:
+    #         print('sample wells finding more inbound points')
+    #         print('sumI',sum(I))
+    #         i+=1
+    #         kappaW[I,:] = subtract_largest(kappaW[I,:])
+    #         I =  [not item for item in self.find_good_output(kappaW)]
+    #         print('I',I)
+
+    #     input_local = np.hstack((kappaW,temp))
+        
+    #     self.write(rnd, 'sample_wells', input_local)
+           
+    # def sample_vertices(self,rnd):
+    #     # self.sample_external_data(rnd,self.vertices,[-.05,0],'sample_vertices')
+    #     # etaB = np.zeros((2,self.dim))
+    #     # T = self.T*np.ones((1,1))
+    #     # # wells
+    #     # etaB[:,0] = 0.5
+    #     # for i in range(1,2):
+    #     #     etaB[2*i-2,i] = 0.5
+    #     #     etaB[2*i-1,i] = -0.5
+    #     # if rnd<100:
+    #     #     kappaB = etaB
+    #     # else:
+    #     #     phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
+    #     #     muB = self.model.predict([etaB,T])[1]
+    #     #     kappaB = etaB + 0.5*muB/phi
+
+    #     N_w2 = round(self.external_points*self.weights[self.type_criterion['sample_vertices']]) # Number of random points per vertex
+    #     if N_w2<1:
+    #         N_w2=1
+    #     kappaW2 = np.zeros(((self.dim-1)*N_w2,self.dim))
+    #     temp = self.T*np.ones(((self.dim-1)*N_w2,1))
+    #     kappaW2[:,0] = 0.5
+    #     kappaW2 +=.05*(np.random.rand(*kappaW2.shape)-0.5) #random perturbation
+     
+    #     # between += 0.5
+    #     print('shape kappaw2', np.shape(kappaW2))
+
+    #     for i in range(1,self.dim):
+    #         print('(i-1)*N_w2',(i-1)*N_w2)
+    #         print('(i)*N_w2',(i)*N_w2)
+
+    #         kappaW2[(i-1)*N_w2:i*N_w2,i] = (np.random.rand(*kappaW2[(i-1)*N_w2:i*N_w2,i].shape)-0.5)  # Random between positive and negative well (ie pos and neg 0.5)
+        
+    #     print('kappaw2',kappaW2)
+    #     I =  [not item for item in self.find_good_output(kappaW2)] #points that are not in bounds
+    #     # print('I',I)
+    #     i=0
+    #     j=sum(I)
+    #     while i < 5 and sum(I) >0:
+    #         print('sample vertices finding more inbound points')
+    #         i+=1
+    #         kappaW2[I,:] = kappaW2[I,:]+ .05*(np.random.rand(*kappaW2[I,:].shape)-0.5)
+    #         I =  [not item for item in self.find_good_output(kappaW2)]
+    #         # print('I',I)
+        
+        
+    #     input_local = np.hstack((kappaW2,temp))
+
+
+    #     self.write(rnd, 'sample_vertices', input_local)
+
+
+    def get_types(self):
+        return self.type_criterion
 
     def load_data(self,rnd,singleRnd=True):
         print('loading data')
@@ -144,6 +491,42 @@ class DataRecommender():
                 array =np.hstack((array,points[i]))
         return array
 
+
+    def find_good_output(self,eta):
+        Qinv = self.sampling_dict['continuous_dependent']['etasampling']['invQ'] 
+
+        keep = np.ones((np.shape(eta)[0]), dtype=np.int8)
+
+
+        for k in range(np.shape(eta)[0]):
+            isbad = False 
+            badvalue = 0
+            for i in range(32):
+                value = 0
+                for j in range(7):
+                    value += Qinv[i,j]*eta[k,j]
+                # print('value',value)
+                if value > 1.05 or value < -0.05:
+                    # count+=1
+                    # keep[k]=0
+                    badvalue=value
+                    isbad = True
+            if isbad == True:
+                # print('etas',eta[k,:])
+                # print('value',badvalue)
+                keep[k]=0
+        true_false_array = [bool(x) for x in keep]
+        return true_false_array
+
+
+    def keep_good_output(self,output):
+        eta = output[:,0:7]
+        true_false_array = self.find_good_output(eta)
+        # self.sampling_dict['continuous_dependent'][domain]['type']
+
+
+        # np.savetxt('{}_keep.txt'.format(type),true_false_array)
+        return  output[true_false_array,:]
 
     def find_wells(self,rnd,dim=4,bounds=[0,0.25],rereference=True):
 
@@ -239,6 +622,18 @@ class DataRecommender():
     def construct_input_types(self):
         [self.type_criterion_of_input] = self.dict.get_individual_keys('Ordering',['type_of_input'])
 
+    def explore_existing(self,rnd):
+        global_points = round(self.N_global_pts*self.weights[self.type_criterion['billiardwalk']]) 
+        
+        database = np.opentxt('billiardwalk_points.txt')
+        data = database[self.global_points:self.global_points+global_points,:]
+        #kappa,temp
+        output = np.hstack((data[:,0:7],data[:,-8:-7])) #eta's and temp
+
+        self.global_points += global_points
+        self.write(rnd, "billiardwalk", output)   
+         
+
 
     def explore(self,rnd):
 
@@ -310,7 +705,7 @@ class DataRecommender():
         # print(self.type_criterion_of_input)
         output = output[:,1:]
          ## EDIT - temporary 
-        output = output[0.5-np.abs(output[:,0]-0.5) > np.abs(output[:,1]) ]
+
 
 
 
@@ -482,12 +877,30 @@ class DataRecommender():
     
     def read_initial_recommended(self,rnd):
         return np.loadtxt(self.OutputFolder+'data/data_recommended/initial_rnd'+str(rnd)+'.txt')
+    
     def read_recommended(self,rnd):
         return np.loadtxt(self.OutputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt')
 
+    def append(self,rnd,newpoints):
+        # initial = np.loadtxt(self.OutputFolder+'data/data_recommended/initial_rnd'+str(rnd)+'.txt')
+        # output = np.vstack((initial,newpoints))
+        # Append newpoints to the initial_rnd file
+        with open(self.OutputFolder + 'data/data_recommended/initial_rnd' + str(rnd) + '.txt', 'a') as f:
+            np.savetxt(f, newpoints, fmt='%.12f')
+
+        # Append newpoints to the rnd file
+        with open(self.OutputFolder + 'data/data_recommended/rnd' + str(rnd) + '.txt', 'a') as f:
+            np.savetxt(f, newpoints, fmt='%.12f')
+
     def choose_points(self,rnd):
+        if not os.path.exists(self.OutputFolder+'data/data_recommended/initial_rnd'+str(rnd)+'.txt'):
+            output = np.empty((0,15))
+            np.savetxt(self.OutputFolder+'data/data_recommended/initial_rnd'+str(rnd)+'.txt',
+                    output,
+                    fmt='%.12f',
+                    header=self.header)
         kept_points=[]
-        if rnd > 0:
+        if rnd > 30:
             print('Begin Reduction of Points, round ',rnd,'...')
             new_points = self.read_initial_recommended(rnd)
             old_points = self.read_recommended(0)
@@ -590,7 +1003,7 @@ class DataRecommender():
         return None  # Value not found in dictionary
     
     def get_trained_points(self,rnd, points):
-        data=np.genfromtxt(self.OutputFolder + 'data/data_sampled/CASMresults'+str(rnd-1)+'.txt',dtype=np.float32)
+        data=np.genfromtxt(self.OutputFolder + 'data/data_sampled/CASMresults'+str(rnd)+'.txt',dtype=np.float32)
         mu_values = []
         for kappa in points:
             # Find the row in the data where the kappa matches
@@ -610,15 +1023,15 @@ class DataRecommender():
 
 
     def determine_improvement(self,rnd):
-        points = self.read_recommended(rnd-1)
+        points = self.read_recommended(rnd)
         
         # predict with old model
         pred_new = self.model.predict([points[:,:self.dim],points[:,self.dim:]])
         
         #load old model and predict
-        self.model.load_trained_model(rnd-2) #? should it be rnd-1 or rnd-2? 
+        self.model.load_trained_model(rnd-1) #? should it be rnd-1 or rnd-2? 
         pred_old = self.model.predict([points[:,:self.dim],points[:,self.dim:]])
-        self.model.load_trained_model(rnd-1) # should be rnd or rnd-1? 
+        self.model.load_trained_model(rnd) # should be rnd or rnd-1? 
 
         #find actual values of mu
         mu_real = self.get_trained_points(rnd,points) 
@@ -629,35 +1042,55 @@ class DataRecommender():
 
 
         mse_old = self.diff_in_mu(pred_old[1],mu_real)
-        print('mse_old',mse_old)
+        # print('mse_old',mse_old)
         mse_new = self.diff_in_mu(pred_new[1],mu_real)
-        print('mse_new',mse_new)
+        # print('mse_new',mse_new)
 
         # print('mse_old',mse_old[0:2,:])
 
         mu_old = pred_old[1]
         mu_new = pred_new[1]
         # mu_real = real_data
-        
+
+        # print('mu_new',np.shape(mu_new))
+        # print('mu_real',np.shape(mu_real))
+        # print('categories',categories)
+        # print('self.type_criterion',self.type)
 
         type_averages_new = {category: mean_squared_error(mu_new[categories == self.type_criterion[category]],mu_real[categories == self.type_criterion[category]]) for category in self.type_criterion}
         type_averages_old = {category: mean_squared_error(mu_old[categories == self.type_criterion[category]],mu_real[categories == self.type_criterion[category]]) for category in self.type_criterion}
 
 
-        print('type_averages_new',type_averages_new)
-        print('type_averages_old',type_averages_old)
+        # print('type_averages_new',type_averages_new)
+        # print('type_averages_old',type_averages_old)
 
         # Calculate the average improvement in MSE for each type
         type_improvements = {category: type_averages_old[category] - type_averages_new[category] for category in self.type_criterion}
         return type_improvements
 
-    def stopping_criteria(self,type_improvements):
-        avg_improvement = sum(type_improvements.values())/len(type_improvements)
-        print('avg_improvement',avg_improvement)
-        if avg_improvement < self.stopping_alpha:
+    def stopping_criteria(self,rnd):
+        input, output = self.model.load_data(rnd, True)
+        input, output = self.model.input_columns_to_training(input, output)
+        current_mse = self.model.model_evaluate(input, output)
+
+        print('current mse',current_mse)
+
+
+
+        # Get loss of previous idnn
+        keras.backend.clear_session()
+        lastmodel = self.model.load_trained_model(rnd-1)#, custom_objects={'Transform': self.IDNN_transforms()})
+        prev_mse =self.model.model_evaluate(input, output)
+
+        print('prev mse',prev_mse)
+
+        # Reload current IDNN
+        self.model.load_trained_model(rnd)#, custom_objects={'Transform': self.IDNN_transforms()})
+
+        if  prev_mse[2] - current_mse[2] < self.stopping_alpha*current_mse[2] :
             return True
-        else:
-            return False
+        
+        return False
 
 
     def reweight_criterion(self, rnd,type_improvements):
@@ -764,7 +1197,7 @@ class DataRecommender():
         # print(self.type_criterion_of_input)
         output = output[:,1:]
          ## EDIT - temporary 
-        output = output[0.5-np.abs(output[:,0]-0.5) > np.abs(output[:,1]) ]
+        # output = output[0.5-np.abs(output[:,0]-0.5) > np.abs(output[:,1]) ]
 
 
 
@@ -785,7 +1218,7 @@ class DataRecommender():
 
 
         for i in range(set_size):
-            predictions[i,:,:] = np.loadtxt(self.OutputFolder + 'training/prediction_{}_{}.json'.format(rnd,i))
+            predictions[i,:,:] = np.loadtxt(self.OutputFolder + 'training/predictions/prediction_{}_{}.json'.format(rnd,i))
 
         avg = np.zeros((np.shape(data)[0],self.inputs_dim))
         for i in range(set_size):
@@ -799,7 +1232,9 @@ class DataRecommender():
 
         # print(np.shape(predictions))
 
-        variations = np.std(flucuation, axis=1)
+        # variations = np.std(flucuation, axis=1)
+
+        variations = np.sum(flucuation,axis=1)
 
         # Get the indices of the data points with the largest variations
         indices = np.argsort(-variations)[::-1]
@@ -819,7 +1254,7 @@ class DataRecommender():
         # print('inputs3',np.shape(input_local))
         input_local = self.combine_list(input_local)
 
-        self.write(rnd, 'QBC', data_sorted)
+        self.write(rnd+1, 'QBC', data_sorted)
 
 
     def predict_explore_extended(self,rnd):

@@ -1,0 +1,17 @@
+#!/bin/bash
+#SBATCH --partition=shared
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=1
+#SBATCH --mem=25G
+#SBATCH -t 1:00:00
+#SBATCH -J AL
+#SBATCH -A mia346
+#SBATCH -o sbatch/%j-output.e
+#SBATCH -e sbatch/%j-errors.e
+#SBATCH --export=ALL
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=holber@umich.edu
+
+# python training_old.py
+python main.py input2.ini
+

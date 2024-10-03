@@ -35,13 +35,13 @@ class CASM_Sampling(Sampling):
          self.lossterms,self.loss_weights,self.optimizer,self.learning,self.lr_decay,
          self.factor, self.patience,self.min_lr,self.EarlyStopping,self.epochs,
          self.batch_size,self.WeightRecent,self.validation_split,
-         self.hyperparameter] = self.dict.get_category_values('IDNN')
+         self.hyperparameter,self.train_new_idnn] = self.dict.get_category_values('IDNN')
 
         for i in range(np.size(self.lossterms)):
             if self.lossterms[i] == 'None':
                 self.lossterms[i] = None
 
-
+        self.global_database=False
 
 
     def load_single_rnd_output(self,rnd):
@@ -52,9 +52,14 @@ class CASM_Sampling(Sampling):
         return eta,mu,T
     
     def read(self,rnd,singleRnd=True):
-        return np.genfromtxt(self.OutputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt',dtype=np.float32)
+        read_data = np.genfromtxt(self.OutputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt',dtype=np.float32)
+        if self.global_database:
+            #if self.global_database - exclude billiardwalk points ie value =1
+            return read_data[read_data[-1]!=1, :]
+        else:
+            return read_data
 
-    def write(self,rnd):
+    def read_from_casm(self,rnd,existingglobal=False,num0=0,num1=0):
         # rows_to_keep = [0, 29, 30, 31]
         # rows_to_keep = [0,1,2,3,4,5,6]
         number = len(self.relevent_indices)
@@ -68,6 +73,7 @@ class CASM_Sampling(Sampling):
         # shutil.rmtree(dirname,ignore_errors=True)
         os.mkdir(dirname)
         data_points = []
+        print("Reading from CASM")
         # else:
         #     os.mkdir(f'round_{rnd}_{temp}')
         for dir in os.listdir(self.OutputFolder + 'data/data_sampled/'):
@@ -87,7 +93,7 @@ class CASM_Sampling(Sampling):
                             T += np.array([data['T']]).T.tolist()
                         elif self.version == 'row':    
                             monte_path=''
-                            directory = os.path.join(OutputFolder + 'data/data_sampled/round_{}'.format(rnd), dir)
+                            directory = os.path.join(self.OutputFolder + 'data/data_sampled/', dir)
                         
                             for filename in os.listdir(directory):
                                 if 'monte' in filename:
@@ -153,10 +159,29 @@ class CASM_Sampling(Sampling):
             T = np.array(T,dtype=float)[0,:,:]
             mu = -2.*phi*(eta - kappa)
 
+        if existingglobal:
+            print('adding billiardpoints')
+            billardpoints = np.genfromtxt('billiardwalkpoints.txt',dtype=np.float32)[num0:num1,:]
+            kappa = np.vstack((kappa,billardpoints[:,:self.derivative_dim]))
+            eta = np.vstack((eta,billardpoints[:,self.derivative_dim:2*self.derivative_dim]))
+            phi= np.vstack((phi,billardpoints[:,2*self.derivative_dim:3*self.derivative_dim]))
+            T = np.vstack((T,billardpoints[:,-self.derivative_dim-1:-self.derivative_dim]) )
+            mu =np.vstack((mu,billardpoints[:,-self.derivative_dim:] ))
+            # billardpoints = np.genfromtxt('billiardwalkpoints.txt',dtype=np.float32)[self.pointcount:self.pointcount+self.N_global_pts,:]
+                    
+        self.write(rnd,kappa,eta,phi,T,mu)
+                # print(np.shape(T))
+    
+
+    def write(self,rnd,kappa,eta,phi,T,mu):
+
             
         # print(np.shape(T))
         dataOut = np.hstack((kappa,eta,phi,T,mu))
         dataOut = dataOut[~pd.isna(dataOut).any(axis=1)] #remove any rows with nan
+
+
+
         outVars = ['kappa','eta','phi']
         header = ''
         for outVar in outVars:
@@ -191,7 +216,7 @@ class CASM_Sampling(Sampling):
             np.save(self.OutputFolder + 'data/data_sampled/allResults{}'.format(rnd),
                     dataOut)
         else:
-            allResults =  np.load(self.OutputFolder + 'data/data_sampled/results{}.npy'.format(rnd-1),allow_pickle=True)
+            allResults =  np.load(self.OutputFolder + 'data/data_sampled/allResults{}.npy'.format(rnd-1),allow_pickle=True)
             allResults = np.vstack((allResults,dataOut))
 
             np.save(self.OutputFolder + 'data/data_sampled/allResults{}'.format(rnd),
@@ -368,7 +393,7 @@ class CASM_Sampling(Sampling):
                 specs = {'job_name':'CASM',
                         'array': '1-{}'.format(self.N_jobs),
                         'account': self.account,
-                        'walltime': self.walltime,
+                        'wall_time': self.walltime,
                         'total_memory':self.mem,
                         'output_folder':'outputFiles',
                         'queue': 'shared'}

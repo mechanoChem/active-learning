@@ -11,7 +11,7 @@ from importlib import import_module
 from time import sleep
 import sys
 
-def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, walltime, memory,outputfolder,i):
+def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, walltime, memory,label,outputfolder,original=True):
     """ A function to submit the job scripts for a each set of hyperparameters
     in the hyperparameter search in the active learning workflow.
 
@@ -29,14 +29,19 @@ def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, wall
     if job_manager=='PC':
         from subprocess import call
 
-    specs = {'account': account,
-             'walltime': walltime,
-             'job_name': 'optimizeHParameters_{}'.format(i),
-             'total_memory': memory,
-             'queue': 'shared'}
+    if original:
+        rangevals=[0,n_sets]
+    else:
+        rangevals = [n_sets,2*n_sets]
     
     # Compare n_sets of random hyperparameters; choose the set that gives the lowest l2norm
     for i in range(n_sets):
+        specs = {'account': account,
+            'wall_time': walltime,
+            'job_name': 'optHPparam_{}'.format(label),
+            'total_memory': memory,
+            'queue': 'shared'}
+
         script = []
         if job_manager != 'PC':
             script.append('python << END')
@@ -66,15 +71,15 @@ def submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, wall
             #call('python ' + str(script), shell=True)
         else:      
             from active_learning.data_collector.slurm_manager import numCurrentJobs, submitJob
-            submitJob(script,specs)
+            submitJob(script,specs,num=i,slurmdirectory=outputfolder+'/slurm/')
 
-def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account, walltime, memory,outputfolder):
+def hyperparameterSearch(rnd,n_sets,commands,training_func,job_manager, account, walltime, memory,outputfolder,model_loss,original=True):
     """ A function that initializes and manages the hyperparameter search in the active learning workflow.
 
     (Still needs to be generalized).
 
-    :param N_sets: The number of hyperparameter sets to run.
-    :type N_sets: int
+    :param n_sets: The number of hyperparameter sets to run.
+    :type n_sets: int
 
     :param rnd: The current round (workflow iteration) number.
     :type rnd: int
@@ -83,28 +88,32 @@ def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account,
     
     # Submit the training sessions with various hyperparameters
     i=0
-    # print('job_manager',job_manager)
+    print('job_manager',job_manager)
     if job_manager != 'PC':
         from active_learning.data_collector.slurm_manager import numCurrentJobs, submitJob
-        while numCurrentJobs('optimizeHParameters_{}'.format(i)) > 0:
+        while numCurrentJobs('optHPparam_{}'.format(i)) > 0:
             i+=1
 
 
-    submitHPSearch(N_sets,rnd,commands,training_func, job_manager, account, walltime, memory,outputfolder,i)
+    submitHPSearch(n_sets,rnd,commands,training_func, job_manager, account, walltime, memory,i,outputfolder,original)
 
-    # print('i',i)
-    # print(numCurrentJobs('optimizeHParameters_{}'.format(i)) > 0)
-    # Wait for jobs to finish
     if job_manager != 'PC':
         from active_learning.data_collector.slurm_manager import numCurrentJobs, submitJob
         sleep(20)
-        while ( numCurrentJobs('optimizeHParameters_{}'.format(i)) > 0):
+        while ( numCurrentJobs('optHPparam_{}'.format(i)) > 0):
             sleep(15)
 
     # Compare n_sets of random hyperparameters; choose the set that gives the lowest l2norm
     hparameters = []
-    for i in range(N_sets):
+    if original:
+        rangevals=[0,n_sets]
+    else:
+        rangevals = [n_sets,2*n_sets]
+    
+    # Compare n_sets of random hyperparameters; choose the set that gives the lowest l2norm
+    for i in range(n_sets):
         filename = outputfolder+'hparameters_'+str(i)+'.txt'
+        # print('hparameters location',filename)
         if os.path.isfile(filename):
             fin = open(filename,'r')
             exec (fin.read()) # execute the code snippet written as a string in the read file
@@ -112,11 +121,17 @@ def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account,
             os.remove(outputfolder+'hparameters_'+str(i)+'.txt')
 
     # Sort by l2norm
-    # print('hparameters: ', hparameters)
+    print('hparameters: ', hparameters)
+    sortedHP2 = sorted(hparameters,key=itemgetter(1))
+    print('sortedhp2',sortedHP2)
     sortedHP = sorted(hparameters,key=itemgetter(2))
+    print('sortedhp',sortedHP)
     # self.outputFolder+ 'training/
 
-    writeHP = open(outputfolder + 'training/sortedHyperParameters_'+str(rnd)+'.txt','w')
+    if original:
+        writeHP = open(outputfolder + 'training/trainings/sortedHyperParameters_'+str(rnd)+'.txt','w')
+    else:
+        writeHP = open(outputfolder + 'training/trainings/sortedHyperParameters_'+str(rnd)+'_2.txt','w')
     writeHP.write('params,round/set,l2norm\n')
     for set in sortedHP:
         writeHP.write(str(set[0])+','+str(set[1])+',"'+str(set[2])+'\n')
@@ -124,12 +139,21 @@ def hyperparameterSearch(rnd,N_sets,commands,training_func,job_manager, account,
 
     # Clean up checkpoint files
     #os.rename('idnn_{}_{}.h5'.format(rnd,sortedHP[0][2]),'idnn_{}.h5'.format(rnd))
-    shutil.rmtree(outputfolder + 'training/model_{}/model'.format(rnd),ignore_errors=True)
-    # print('sortedhp', sortedHP)
-    os.rename(outputfolder + 'training/model_{}/'.format(sortedHP[0][1]),outputfolder + 'training/model_{}/'.format(rnd))
-    copyfile(outputfolder +'training/training_{}.txt'.format(sortedHP[0][1]),outputfolder +'training/training_{}.txt'.format(rnd))
+    print('sortedHP',sortedHP)
+    print('sortedHp[0][-1]',sortedHP[0][-1])
+    print('type sorted', type(sortedHP[0][-1]))
+    print('model loss',model_loss)
+    print('type loss',type(model_loss))
+     # Compare n_sets of random hyperparameters; choose the set that gives the lowest l2norm
+    # if sortedHP[0][-1] < model_loss:
+    if 1==1:
+        shutil.rmtree(outputfolder + 'training/model_{}'.format(rnd),ignore_errors=True)
+        # print('sortedhp', sortedHP)
+        os.rename(outputfolder + 'training/model_{}'.format(sortedHP[0][1],rnd),outputfolder + 'training/model_{}'.format(rnd))
+        copyfile(outputfolder +'training/trainings/training_{}.txt'.format(sortedHP[0][1]),outputfolder +'training/training_{}.txt'.format(rnd))
     
-    for i in range(N_sets):
+
+    for i in range(n_sets):
         shutil.rmtree(outputfolder + 'training/model_{}_{}'.format(rnd,i),ignore_errors=True)
 
-    return sortedHP[0][0]#,sortedHP[0][0] #params
+    return sortedHP[0][0],sortedHP[0][-1] #,sortedHP[0][0] #params

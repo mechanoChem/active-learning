@@ -7,24 +7,23 @@ import sys
 
 class Dictionary():
 
-    def __init__(self, input_file):
+    def __init__(self, input_file,originalpath=False):
+        if not os.path.isfile(input_file):
+            raise FileNotFoundError(f"File not found: {input_file}")
 
         filepath = os.path.dirname(__file__)
 
         with open('{}/sample.json'.format(filepath)) as json_file:
             self.dict = json.load(json_file)
         self.construct_dict(input_file)
-        self.dict['Main']['dir_path'] = os.path.dirname(input_file)
+        if originalpath:
+            self.dict['Main']['dir_path'] = originalpath
+        else:  
+            self.dict['Main']['dir_path'] = os.path.dirname(input_file)
+
         self.maintain_input()
         self.construct_input_types()
 
-        # try:
-        #     self.maintain_input()
-        # except:
-        #     print('Missing input data')
-        #     return -1
-        
-        # return 0
 
 
     def construct_dict(self,input_file):
@@ -97,10 +96,12 @@ class Dictionary():
     def verifypath(self,inputs):
         for i in range(np.shape(inputs)[0]):
             if not os.path.isabs(self.dict[inputs[i][0]][inputs[i][1]]):
-                # print("file",inputs[i][0],inputs[i][1] )
                 pathlocation = os.path.join( self.dict['Main']['dir_path'], self.dict[inputs[i][0]][inputs[i][1]])
-                # print("pathlocation",pathlocation)
-                assert(os.path.exists(pathlocation))
+                try:
+                    assert os.path.exists(pathlocation)
+                except AssertionError:
+                    print('Path location not found:', pathlocation)
+                    sys.exit(1)  # Terminate the program with a non-zero exit status
                 self.dict[inputs[i][0]][inputs[i][1]] = pathlocation
 
 
@@ -118,7 +119,7 @@ class Dictionary():
             str_array_inputs += [['IDNN','activation'],['IDNN','loss']]
             float_inputs += [['IDNN','dropout'],['IDNN','learning'],['IDNN','lr_decay'],['IDNN','factor'],['IDNN','patience'],['IDNN','min_lr'], ['IDNN','validation_split']]
             assert('optimizer' in self.dict['IDNN'])
-            true_false += [['IDNN','idnn_hyperparameter']]
+            true_false += [['IDNN','idnn_hyperparameter'],['IDNN','idnn_train_new_idnn'],['IDNN','weightrecent'],['IDNN','earlystopping'] ]
             float_array_inputs += [['IDNN','loss_weights']]
             paths += [['IDNN','transforms_directory']]
             if self.dict['IDNN']['idnn_hyperparameter'] == 'True':
