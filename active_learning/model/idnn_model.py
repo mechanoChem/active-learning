@@ -312,13 +312,13 @@ class IDNN_Model(Model):
         inputs,output = self.input_columns_to_training(inputs,output)
         inds = np.arange(inputs[0].shape[1])
 
-        if self.WeightRecent and rnd>0:
+        if self.WeightRecent:
             print('WeightRecent')
             # weight the most recent high error points as high as all the other points
             n_points = inputs[0].shape[1]#len(inputs[0])
             sample_weight = np.ones(n_points)
-            input,output = self.load_data(rnd,singleRnd=True)
-            recentpoints = inputs[0].shape[1]
+            i,o = self.load_data(rnd,singleRnd=True)
+            recentpoints = i[0].shape[1]
             print('n_points',n_points)
             print('recentpoints',recentpoints)
             if rnd > 0:
@@ -346,13 +346,13 @@ class IDNN_Model(Model):
             callbackslist.append(earlyStopping)
 
         
-        if self.WeightRecent and rnd>0:
+        if self.WeightRecent:
             history =model.fit(inputs,
                     output,
                     validation_split=self.validation_split,
                     epochs=self.epochs,
                     batch_size=self.batch_size,
-                    sample_weight=[sample_weight,sample_weight],
+                    sample_weight=[sample_weight,sample_weight,sample_weight],
                     callbacks=callbackslist,
                     verbose=0)
         
