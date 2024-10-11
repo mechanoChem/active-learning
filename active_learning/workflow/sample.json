@@ -1,0 +1,136 @@
+{"Main": 
+{"model": "IDNN", 
+"data_generation": "True",
+"data_generation_source": "CASM", 
+"restart": "False",
+"input_data": "False", 
+"input_alias": "input",
+"output_alias": "output", 
+"iterations": "25", 
+"outputfolder": "/Output/", 
+"seed": "1", 
+"input_dim":"8",
+"derivative_dim":"7",
+"output_dim":"7",
+"dir_path": null}, 
+
+"CASM": 
+{"casm_project_dir": "/Users/jamieholber/Software/active-learning/tests/LCO/CASMcode", 
+"casm_version": "LCO", 
+"initial_mu": null, 
+"phi": null, 
+"n_jobs": "1"}, 
+
+"CASM_Surrogate": 
+{"casm_project_dir": "/Users/jamieholber/Software/active-learning/tests/LCO/CASMcode", 
+"casm_version": "LCO", 
+"initial_mu": null, 
+"phi":null, 
+"n_jobs": "1", 
+"hidden_layers": "174,174,174", 
+"input_shape": "1,12", 
+"dim": "7", 
+"version": "LCO", 
+"activation": "tanh", 
+"transforms_directory": "/Users/jamieholber/Software/active-learning/tests/LCO"}, 
+
+"Custom": 
+{"generation_file": "''"}, 
+
+"Explore_Parameters":
+ {"global_points": "15", 
+ "sample_external": "False",
+ "external": null, 
+ "external_points": "15",
+ "external_perturb_magnitude": "1"},
+ 
+ "Exploit_Parameters": 
+ {"non_convexities": "True", 
+ "non_convexities_repeat": "3,2", 
+ "non_convexities_repeat_points": "20,10", 
+ "non_convexities_perturb_magnitude":"0",
+ "high_error": "True", 
+ "high_error_repeat": "3,2", 
+ "high_error_repeat_points": "20,10", 
+ "high_error_perturb_magnitude":"0",
+ "find_wells": "True",
+ "wells_repeat": "3,2", 
+ "wells_repeat_points": "20,10",
+ "wells_perturb_magnitude":"0",
+ "lowest_free_energy": "True",
+"lowest_repeat": "1",
+"lowest_repeat_points": "50",
+"lowest_file": "eta_curve.txt",
+"lowest_perturb_magnitude":"0",
+ "sensitivity": "True", 
+ "sensitivity_repeat": "3,2", 
+ "sensitivity_repeat_points": "20,10",
+ "sensitivity_perturb_magnitude":"0",
+ "qbc": "True",
+ "qbc_repeat": "1",
+ "qbc_repeat_points": "1000",
+ "qbc_perturb_magnitude":"0"}, 
+ 
+
+ "Sampling_Job_Manager": 
+ {"job_manager": "PC", 
+ "account": "mia341", 
+ "walltime": "2:00:00", 
+ "mem": "10G"}, 
+ 
+ "Hyperparameter_Job_Manager": 
+ {"job_manager": "PC", 
+ "account": "mia341", 
+ "walltime": "2:00:00", 
+ "mem": "10G"}, 
+ 
+ "IDNN": 
+ {"layers": "2", 
+ "neurons": "60", 
+ "activation": "tanh,tanh", 
+ "dropout": "0.06", 
+ "transforms_directory": "/Users/jamieholber/Software/active-learning/tests/LCO", 
+
+ "loss": "mse,mse,null", 
+ "loss_weights": "0.01,0.1,0", 
+ "optimizer": "legacy.RMSprop", 
+ "learning": "0.002", 
+ "lr_decay": "0.95", 
+
+
+ "factor": "0.5", 
+ "patience": "150", 
+ "min_lr": "0.000001", 
+ "earlystopping": "No", 
+ "epochs": "100", 
+ "batch_size": "500", 
+ "weightrecent": "No", 
+ "validation_split": "0.25", 
+ "idnn_hyperparameter": "True"}, 
+ 
+
+
+ "IDNN_Hyperparameter": 
+ {"n_sets": "2", 
+ "layers": null, 
+ "neurons": null, 
+ "activation": null, 
+ "dropout":null, 
+
+ "optimizer": null, 
+ "learning": null, 
+ "lr_decay": null, 
+
+
+ "factor": null, 
+ "patience": null, 
+ "min_lr": null, 
+ "epochs": null, 
+ "batch_size": null
+}, 
+ 
+ "Inference": {}, 
+ 
+ "Restart": 
+ {"rnd": null,
+ "step":null}}
