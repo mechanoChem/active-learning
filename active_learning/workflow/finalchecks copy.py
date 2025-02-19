@@ -42,7 +42,7 @@ def predicting_best(dictionary,model,outputfile,rnd):
     eigenvector = np.zeros(grad.shape)
     for i in range(len(grad)):
         eigen[i,:], eigenvector[i,:,:] = LA.eig(grad[i,:,:])
-    # print('max eta1', np.max(eta[:,1]))
+    print('max eta1', np.max(eta[:,1]))
     data = np.hstack((eta,mu,free,eigen,T))
     np.savetxt(outputfile+f'alldatapredictedrnd_{lowestrnd}.txt',data)
 
@@ -160,8 +160,8 @@ def loss(dictionary,model,outputfile,rnd_max,testing_data='allResults49.txt'):
         allloss = model.model_evaluate(i,o)
         rndloss = model.loss(rnd,True)
         allpredict =model.predict([eta_all,T_all])
-        # print('alllossmse',np.mean((allpredict[1]*100-mu_all*100) ** 2))
-        # print('allpredict',allpredict[1])
+        print('alllossmse',np.mean((allpredict[1]*100-mu_all*100) ** 2))
+        print('allpredict',allpredict[1])
         
         # Append rnd and loss values to lists
         rnd_values.append(rnd)
@@ -170,10 +170,10 @@ def loss(dictionary,model,outputfile,rnd_max,testing_data='allResults49.txt'):
         allloss_values.append(allloss[2])
         # graphpoints_values.append(graphpointsloss[2])
         
-        # print('rnd', rnd)
-        # print('loss', lastloss)
-        # print('loss', rndloss)
-        # print('loss', allloss)
+        print('rnd', rnd)
+        print('loss', lastloss)
+        print('loss', rndloss)
+        print('loss', allloss)
         if lastloss[2] < lowestloss:
             lowestloss=lastloss[2]
             lowestrnd = rnd

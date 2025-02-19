@@ -33,7 +33,7 @@ class DataRecommender():
         [self.sample_non_convexities,self.non_convexities_repeat, self.non_convexities_repeat_points,self.non_convexities_perturb,self.sample_high_error,
         self.high_error_repeat, self.high_error_repeat_points, self.high_error_perturb, self.sample_find_wells, self.wells_repeat,
         self.wells_repeat_points,self.wells_perturb, self.lowest_free_energy,self.lowest_repeat,self.lowest_repeat_points, self.lowest_free_energy_file,self.lowest_perturb,
-        self.sample_sensitivity,self.sensitivity_repeat_points, self.sensitivity_repeat,self.sensitivity_perturb,self.QBC,self.QBC_repeat,self.QBC_repeat_points,self.QBC_perturb] = self.dict.get_category_values('Exploit_Parameters')
+        self.sample_sensitivity,self.sensitivity_repeat, self.sensitivity_repeat_points,self.sensitivity_perturb,self.QBC,self.QBC_repeat,self.QBC_repeat_points,self.QBC_perturb] = self.dict.get_category_values('Exploit_Parameters')
         self.header = ''
 
         [self.Model_type,    
@@ -41,6 +41,8 @@ class DataRecommender():
          self.inputs_data,self.inputs_alias,self.output_alias, self.iterations,
          self.OutputFolder, self.seed, self.inputs_dim, self.derivative_dim,
          self.output_dim,self.config_path,self.T,self.graph,self.reweight,self.alpha,self.prediction_points] = self.dict.get_category_values('Main')
+
+
 
         self.sampling_dict = self.dict.get_category('Sampling')
         self.Qinv = self.sampling_dict['continuous_dependent']['etasampling']['invQ']
@@ -52,11 +54,33 @@ class DataRecommender():
             self.type_criterion = json.loads(data)
         self.stopping_alpha=0
         self.total_global=0
-        self.dim=self.inputs_dim-1                
+        self.dim=self.inputs_dim-1  
+        for domain in self.sampling_dict['continuous_dependent'] :
+            self.x0 =self.sampling_dict['continuous_dependent'][domain]['x0']   
+            self.domain2d = self.sampling_dict['continuous_dependent'][domain]['2d'] 
+            self.x0_2d = self.x0[0:2]
+            self.points_2d = self.sampling_dict['continuous_dependent'][domain]['2d_points'] 
+        # print('create boundary points')
+        # for domain in self.sampling_dict['continuous_dependent'] :
+        #     print('domain',domain)
+        #     n_planes = self.sampling_dict['continuous_dependent'][domain]['n_planes']
+        #     c_planes = self.sampling_dict['continuous_dependent'][domain]['c_planes']
+        #     eta_b=self.create_boundary_points(self.sampling_dict['continuous_dependent'][domain]['x0'],n_planes,c_planes,1000000)   
+        #     np.savetxt(self.OutputFolder+'global_boundary_points2.txt',eta_b,fmt='%.12f',
+        #                 header=self.header)      
         
+        [self.relevent_indices]= self.dict.get_individual_keys(self.Data_Generation_Source,['relevent_indices'])
+
+    def explore2d(self):
+
+        return self.domain2d
+    
+    def points2D(self):
+        return self.points_2d
+    
     def create_types(self,type):   
         self.type_criterion[type] = len(self.type_criterion)
-        print(' self.type_criterion',self.type_criterion)
+        print('self.type_criterion',self.type_criterion)
 
         self.weights = np.ones(len(self.type_criterion))
         with open(self.OutputFolder+'data/data_recommended/types.txt', 'w') as file: 
@@ -64,11 +88,7 @@ class DataRecommender():
 
     def write(self,rnd,type,output):
         value=self.type_criterion[type]
-        print('Output shape before checking output for being inbounds',np.shape(output))
         output = self.keep_good_output(output)
-        print('Output shape after checking output for being inbounds',np.shape(output))
-            
-
         output = np.hstack((output,self.type_criterion[type]*np.ones((np.shape(output)[0],1))))
 
 
@@ -85,6 +105,20 @@ class DataRecommender():
                     fmt='%.12f',
                     header=self.header)
     
+    def subtract_largest(self,arr, value=0.15):
+            # Iterate through each row of the array
+            for row in arr:
+                # Find the index of the largest element in the row
+                max_index = np.argmax(np.abs(row[1:7]))
+                if row[max_index+1] > 0.2:
+                    row[max_index+1] -= value*np.random.random()
+                if row[max_index+1] < -0.2:
+                    row[max_index+1] += value*np.random.random()
+                if np.abs(row[max_index+1]) <= 0.2:
+                    row[max_index+1] = row[max_index+1]/4
+                # print('new row',row)
+            return arr
+
     def sample_wells(self, rnd):
         # self.sample_external_data(rnd,self.wells,[.15,0.5],'sample_wells')
         etaW = np.zeros((2*self.dim+1,self.dim))
@@ -108,23 +142,14 @@ class DataRecommender():
             phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
             muW = self.model.predict([etaW,T])[1]
             kappaW = etaW + 0.5*muW/phi
-        # print('well points',self.wells_points)
-        # print('weight',self.weights[self.type_criterion['sample_wells']])
         N_w = round(self.external_points*self.weights[self.type_criterion['sample_wells']])  #35 #50
         if N_w < 1:
             N_w=1
-        # print('N_w',N_w)
-        # print('kappaW',kappaW)
         kappaW = np.repeat(kappaW,N_w,axis=0)
-        # print('kappaW',kappaW)
         kappaW[:,0]  = kappaW[:,0]+ .05*(np.random.rand(*kappaW[:,0].shape)-0.5)
         for i in range(1,self.dim):
             #only perturb points that are already set to 0.425
             kappaW[:,i]  = kappaW[:,i]+ .1*np.abs(kappaW[:,i])/.425*(np.random.rand(*kappaW[:,i].shape)-0.5)
-        # print('kappaW',kappaW)
-        
-        #perturb points at x=0.5 by plus or minus .05
-        # print('rand rand', np.random.rand(*kappaW[N_w*2:,1:].shape)-0.5)
 
         kappaW[N_w*2:,1:] += .005*rnd*(np.random.rand(*kappaW[N_w*2:,1:].shape)-0.5)
 
@@ -133,66 +158,29 @@ class DataRecommender():
         # perturb points near x=1 by plus or minus (1-x)
         kappaW[N_w:N_w*2,1:] += 2*(1-kappaW[N_w:N_w*2,0:1])*(np.random.rand(*kappaW[N_w:N_w*2,1:].shape)-0.5)
 
-        # print('kappaW',kappaW)
-
 
 
         kappaW  = kappaW+ self.external_perturbation*(np.random.rand(*kappaW.shape)-0.5)
 
         temp = self.T*np.ones(((2*self.dim+1)*N_w,1))
 
-        def subtract_largest(arr, value=0.15):
-            # Iterate through each row of the array
-            for row in arr:
-                # Find the index of the largest element in the row
-                max_index = np.argmax(np.abs(row[1:7]))
-                # print('row',row)
-                # print('max_index',max_index)
-                # Subtract the value from the largest element
-                if row[max_index+1] > 0.2:
-                    row[max_index+1] -= value*np.random.random()
-                if row[max_index+1] < -0.2:
-                    row[max_index+1] += value*np.random.random()
-                if np.abs(row[max_index+1]) < 0.2:
-                    row[max_index+1] = row[max_index+1]/4
-                # print('new row',row)
-            return arr
         
 
         I =  [not item for item in self.find_good_output(kappaW)] #points that are not in bounds
-        # print('I',I)
-        # print('bad points', kappaW[I,:])
         i=0
         while i < 5 and sum(I) >0:
-            # print('sample wells finding more inbound points')
-            # print('sumI',sum(I))
             i+=1
-            kappaW[I,:] = subtract_largest(kappaW[I,:])
+            kappaW[I,:] = self.subtract_largest(kappaW[I,:])
             I =  [not item for item in self.find_good_output(kappaW)]
-            # print('I',I)
-            # print('kappaW',kappaW)
-        # print('bad points', kappaW[I,:])
-        
 
         input_local = np.hstack((kappaW,temp))
+        random_indices = np.random.choice(input_local.shape[0], size=N_w, replace=False)
+        random_subset = input_local[random_indices]
         
-        self.write(rnd, 'sample_wells', input_local)
+        
+        self.write(rnd, 'sample_wells', random_subset)
            
     def sample_vertices(self,rnd):
-        # self.sample_external_data(rnd,self.vertices,[-.05,0],'sample_vertices')
-        # etaB = np.zeros((2,self.dim))
-        # T = self.T*np.ones((1,1))
-        # # wells
-        # etaB[:,0] = 0.5
-        # for i in range(1,2):
-        #     etaB[2*i-2,i] = 0.5
-        #     etaB[2*i-1,i] = -0.5
-        # if rnd<100:
-        #     kappaB = etaB
-        # else:
-        #     phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
-        #     muB = self.model.predict([etaB,T])[1]
-        #     kappaB = etaB + 0.5*muB/phi
 
         N_w2 = round(self.external_points*self.weights[self.type_criterion['sample_vertices']]) # Number of random points per vertex
         if N_w2<1:
@@ -221,209 +209,11 @@ class DataRecommender():
         
         
         input_local = np.hstack((kappaW2,temp))
+        random_indices = np.random.choice(input_local.shape[0], size=N_w2, replace=False)
+        random_subset = input_local[random_indices]
 
 
-        self.write(rnd, 'sample_vertices', input_local)
-
-    # def sample_wells(self, rnd):
-    #     # self.sample_external_data(rnd,self.wells,[.15,0.5],'sample_wells')
-    #     etaW = np.zeros((2*self.dim,self.dim))
-
-    #     # wells
-    #     etaW[:,0] = 0.5
-    #     for i in range(1,self.dim):
-    #         etaW[2*i,i] = 0.425
-    #         etaW[2*i+1,i] = -0.425
-    #     # end members
-    #     etaW[0,0] = 0.075
-    #     etaW[1,0] = 0.925
-    #     # etaW[:,0] = np.linspace(0.1,0.9,14)
-
-    #     # define bias parameters
-    #     if rnd<100:
-    #         kappaW = etaW
-    #     else:
-    #         phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
-    #         muW = self.model.predict([etaW,T])[1]
-    #         kappaW = etaW + 0.5*muW/phi
-    #     # print('well points',self.wells_points)
-    #     # print('weight',self.weights[self.type_criterion['sample_wells']])
-    #     N_w = round(self.external_points*self.weights[self.type_criterion['sample_wells']])  #35 #50
-    #     if N_w < 1:
-    #         N_w=1
-    #     # print('N_w',N_w)
-    #     kappaW = np.repeat(kappaW,N_w,axis=0)
-    #     kappaW  += self.external_perturbation*(np.random.rand(*kappaW.shape)-0.5)
-    #     # kappaW  += (.05+.01*rnd)*(np.random.rand(*kappaW.shape)-0.5)
-    #     temp = self.T*np.ones((2*self.dim*N_w,1))
-    #     input_local = np.hstack((kappaW,temp))
-    #     # print('size of sample wells',np.shape(input_local))
-    #     self.write(rnd, 'sample_wells', input_local)
-           
-    # def sample_vertices(self,rnd):
-    #     # self.sample_external_data(rnd,self.vertices,[-.05,0],'sample_vertices')
-    #     etaB = np.zeros((2*(self.dim-1),self.dim))
-    #     # wells
-    #     etaB[:,0] = 0.5
-    #     for i in range(1,self.dim):
-    #         etaB[2*i-2,i] = 0.5
-    #         etaB[2*i-1,i] = -0.5
-    #     if rnd<100:
-    #         kappaB = etaB
-    #     else:
-    #         phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
-    #         muB = self.model.predict([etaB,T])[1]
-    #         kappaB = etaB + 0.5*muB/phi
-
-    #     N_w2 = round(self.external_points*self.weights[self.type_criterion['sample_vertices']]) # Number of random points per vertex
-    #     if N_w2<10:
-    #         N_w2=10
-    #     kappaW2 = np.zeros(((self.dim-1)*N_w2,self.dim))
-    #     temp = self.T*np.ones(((self.dim-1)*N_w2,1))
-    #     kappaW2[:,0] = kappaB[0,0]
-    #     kappaW2 +=self.external_perturbation*(np.random.rand(*kappaW2.shape)-0.5) 
-    #     # kappaW2 += (.05+.01*rnd)*(np.random.rand(*kappaW2.shape)-0.5) # Small random perterbation
-    #     for i in range(1,self.dim):
-    #         kappaW2[(i-1)*N_w2:i*N_w2,i] = (np.random.rand(*kappaW2[(i-1)*N_w2:i*N_w2,i].shape)-0.5)  # Random between positive and negative well (ie pos and neg 0.5)
-    #         # for j in range(2*N_w2):
-    #             # kappaW2[2*(i-1)*N_w2 + j,i] = np.random.rand()*(kappaB[2*i-2,i] - kappaB[2*i-1,i]) + kappaB[2*i-1,i] # Random between positive and negative well
-    #     input_local = np.hstack((kappaW2,temp))
-    #     self.write(rnd, 'sample_vertices', input_local)
-
-    # def sample_wells(self, rnd):
-    #     # self.sample_external_data(rnd,self.wells,[.15,0.5],'sample_wells')
-    #     etaW = np.zeros((2*self.dim,self.dim))
-    #     T = self.T*np.ones((3,1))
-    #     # wells
-    #     etaW[:,0] = 0.5
-    #     # etaW[2,1] =0.425
-    #     for i in range(1,self.dim):
-    #         etaW[2*i,i] = 0.425
-    #         etaW[2*i+1,i] = -0.425
-    #     # end members
-    #     etaW[0,0] = .075
-    #     etaW[1,0] = .925
-    #     # etaW[:,0] = np.linspace(0.1,0.9,14)
-
-    #     # define bias parameters
-    #     if rnd<100:
-    #         kappaW = etaW
-    #     else:
-    #         phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
-    #         muW = self.model.predict([etaW,T])[1]
-    #         kappaW = etaW + 0.5*muW/phi
-    #     # print('well points',self.wells_points)
-    #     # print('weight',self.weights[self.type_criterion['sample_wells']])
-    #     N_w = round(self.external_points*self.weights[self.type_criterion['sample_wells']])  #35 #50
-    #     if N_w < 1:
-    #         N_w=1
-    #     # print('N_w',N_w)
-    #     kappaW = np.repeat(kappaW,N_w,axis=0)
-    #     print('kappaW',kappaW)
-    #     kappaW[:,0]  = kappaW[:,0]+ .15*(np.random.rand(*kappaW[:,0].shape)-0.5)
-    #     for i in range(1,self.dim):
-    #         kappaW[:,i]  = kappaW[:,i]+ .1*np.abs(kappaW[:,i])/.425*(np.random.rand(*kappaW[:,i].shape)-0.5)
-        
-        
-    #     #
-    #     kappaW[N_w*2:,1:] += .05*(np.random.rand(*kappaW[N_w*2,1:].shape)-0.5)
-
-    #     # #perturb points near x=0 by plus or minus x
-    #     print('shape', np.shape(2*kappaW[0:N_w,0:1]*np.random.rand(*kappaW[0:N_w,1:].shape)-0.5))
-
-    #     kappaW[0:N_w,1:]  += 2*kappaW[0:N_w,0:1]*(np.random.rand(*kappaW[0:N_w,1:].shape)-0.5)
-    #     # perturb points near x=1 by plus or minus (1-x)
-    #     kappaW[N_w:N_w*2,1:] += 2*(1-kappaW[N_w:N_w*2,0:1])*(np.random.rand(*kappaW[N_w:N_w*2,1:].shape)-0.5)
-
-
-
-
-    #     # kappaW  = kappaW+ self.external_perturbation*(np.random.rand(*kappaW.shape)-0.5)
-    #     print('kappa',kappaW)
-        
-    #     temp = self.T*np.ones((2*self.dim*N_w,1))
-
-    #     def subtract_largest(arr, value=0.15):
-    #         # Iterate through each row of the array
-    #         for row in arr:
-    #             # Find the index of the largest element in the row
-    #             max_index = np.argmax(np.abs(row[1:7]))
-    #             # Subtract the value from the largest element
-    #             if row[max_index+1] > 0.2:
-    #                 row[max_index+1] -= value*np.random.random()
-    #             if row[max_index+1] < 0.2:
-    #                 row[max_index+1] += value*np.random.random()
-    #             if np.abs(row[max_index+1]) < 0.2:
-    #                 row[max_index+1] = row[max_index+1]/2
-    #         return arr
-        
-
-    #     I =  [not item for item in self.find_good_output(kappaW)] #points that are not in bounds
-    #     print('I',I)
-    #     print('bad points', kappaW[I,:])
-    #     i=0
-    #     while i < 5 and sum(I) >0:
-    #         print('sample wells finding more inbound points')
-    #         print('sumI',sum(I))
-    #         i+=1
-    #         kappaW[I,:] = subtract_largest(kappaW[I,:])
-    #         I =  [not item for item in self.find_good_output(kappaW)]
-    #         print('I',I)
-
-    #     input_local = np.hstack((kappaW,temp))
-        
-    #     self.write(rnd, 'sample_wells', input_local)
-           
-    # def sample_vertices(self,rnd):
-    #     # self.sample_external_data(rnd,self.vertices,[-.05,0],'sample_vertices')
-    #     # etaB = np.zeros((2,self.dim))
-    #     # T = self.T*np.ones((1,1))
-    #     # # wells
-    #     # etaB[:,0] = 0.5
-    #     # for i in range(1,2):
-    #     #     etaB[2*i-2,i] = 0.5
-    #     #     etaB[2*i-1,i] = -0.5
-    #     # if rnd<100:
-    #     #     kappaB = etaB
-    #     # else:
-    #     #     phi = np.array([10.0,0.1,0.1,0.1,0.1,0.1,0.1])
-    #     #     muB = self.model.predict([etaB,T])[1]
-    #     #     kappaB = etaB + 0.5*muB/phi
-
-    #     N_w2 = round(self.external_points*self.weights[self.type_criterion['sample_vertices']]) # Number of random points per vertex
-    #     if N_w2<1:
-    #         N_w2=1
-    #     kappaW2 = np.zeros(((self.dim-1)*N_w2,self.dim))
-    #     temp = self.T*np.ones(((self.dim-1)*N_w2,1))
-    #     kappaW2[:,0] = 0.5
-    #     kappaW2 +=.05*(np.random.rand(*kappaW2.shape)-0.5) #random perturbation
-     
-    #     # between += 0.5
-    #     print('shape kappaw2', np.shape(kappaW2))
-
-    #     for i in range(1,self.dim):
-    #         print('(i-1)*N_w2',(i-1)*N_w2)
-    #         print('(i)*N_w2',(i)*N_w2)
-
-    #         kappaW2[(i-1)*N_w2:i*N_w2,i] = (np.random.rand(*kappaW2[(i-1)*N_w2:i*N_w2,i].shape)-0.5)  # Random between positive and negative well (ie pos and neg 0.5)
-        
-    #     print('kappaw2',kappaW2)
-    #     I =  [not item for item in self.find_good_output(kappaW2)] #points that are not in bounds
-    #     # print('I',I)
-    #     i=0
-    #     j=sum(I)
-    #     while i < 5 and sum(I) >0:
-    #         print('sample vertices finding more inbound points')
-    #         i+=1
-    #         kappaW2[I,:] = kappaW2[I,:]+ .05*(np.random.rand(*kappaW2[I,:].shape)-0.5)
-    #         I =  [not item for item in self.find_good_output(kappaW2)]
-    #         # print('I',I)
-        
-        
-    #     input_local = np.hstack((kappaW2,temp))
-
-
-    #     self.write(rnd, 'sample_vertices', input_local)
+        self.write(rnd, 'sample_vertices', random_subset)
 
 
     def get_types(self):
@@ -477,7 +267,6 @@ class DataRecommender():
                 input_local_col += perturb[0]*(np.random.rand(*input_local_col.shape)-perturb[1]) #perturb points randomly
             
             input_local.append(input_local_col)
-        # print('input_local ie return',np.shape(input_local))
         return input_local
 
 
@@ -503,8 +292,11 @@ class DataRecommender():
             badvalue = 0
             for i in range(32):
                 value = 0
-                for j in range(7):
+                # l=0
+                # for j in self.relevent_indices:
+                for j in range(self.dim):
                     value += Qinv[i,j]*eta[k,j]
+                    # l+=1
                 # print('value',value)
                 if value > 1.05 or value < -0.05:
                     # count+=1
@@ -520,12 +312,8 @@ class DataRecommender():
 
 
     def keep_good_output(self,output):
-        eta = output[:,0:7]
+        eta = output[:,0:self.dim]
         true_false_array = self.find_good_output(eta)
-        # self.sampling_dict['continuous_dependent'][domain]['type']
-
-
-        # np.savetxt('{}_keep.txt'.format(type),true_false_array)
         return  output[true_false_array,:]
 
     def find_wells(self,rnd,dim=4,bounds=[0,0.25],rereference=True):
@@ -564,6 +352,8 @@ class DataRecommender():
         input_local = self.find_new_points(input,self.wells_repeat_points,self.wells_repeat,[self.wells_perturb,.5],'find_wells')
         input_local = self.combine_list(input_local)
 
+
+
         if np.shape(input_local)[0] != 0:
             self.write(rnd, 'find_wells', input_local)
         else:
@@ -595,7 +385,7 @@ class DataRecommender():
         while (i < N_points):
             x_test[i],seed = i4_sobol(dim,seed)
             x_test[i] = (bounds[1] - bounds[0])*x_test[i] + bounds[0] # shift/scale according to bounds
-            eta[i] = np.dot(x_test[i],self.Q.T).astype(np.float32)
+            eta[i] = np.dot(x_test[i],self.Q.T).astype(np.float64)
             if eta[i,0] <= 0.25:
                 i += 1
         return x_test, eta, seed
@@ -604,11 +394,20 @@ class DataRecommender():
         tau = 1
         eta, eta_b = billiardwalk(x0,n_planes,c_planes,N_points,tau)
         x_test = eta 
-        self.x0 = eta[-1] # Take last point to be next initial point)
-        eta = np.vstack((eta,eta_b[np.random.permutation(np.arange(len(eta_b)))[:N_boundary]]))
-
-        return x_test,eta
+        if len(eta_b)>0:
+            eta = np.vstack((eta[np.random.permutation(np.arange(len(eta)))[:N_points-N_boundary]],eta_b[np.random.permutation(np.arange(len(eta_b)))[:N_boundary]]))
+        else:
+            eta= eta[np.random.permutation(np.arange(len(eta)))]
+        #return next point, to the first point in next round, and eta
+        return eta[-1],eta
     
+
+
+
+    def create_boundary_points(self,x0,n_planes,c_planes,N_points,N_boundary=0):
+        tau = 1
+        eta, eta_b = billiardwalk(x0,n_planes,c_planes,N_points,tau)
+        return eta_b
 
     def ideal(self,x_test):
 
@@ -627,26 +426,25 @@ class DataRecommender():
         
         database = np.opentxt('billiardwalk_points.txt')
         data = database[self.global_points:self.global_points+global_points,:]
-        #kappa,temp
         output = np.hstack((data[:,0:7],data[:,-8:-7])) #eta's and temp
 
         self.global_points += global_points
         self.write(rnd, "billiardwalk", output)   
          
 
+    def explore(self,rnd,twoD=False):
 
-    def explore(self,rnd):
 
-        global_points = round(self.N_global_pts*self.weights[self.type_criterion['billiardwalk']]) 
+        if twoD:
+            global_points = round(self.N_global_pts*self.points_2d*self.weights[self.type_criterion['billiardwalk_2d']]) 
+        else:
+            global_points = round(self.N_global_pts*self.weights[self.type_criterion['billiardwalk']]) 
         if global_points < 10:
             global_points=10
         output = np.ones((global_points,1))
         outputorder = []
-
-
        
         for domain in self.sampling_dict['continuous_dependent'] :
-            # outputorder += self.sampling_dict['continuous_dependent'][domain]['dim']*self.sampling_dict['continuous_dependent'][domain]['values']
             test_set = self.sampling_dict['continuous_dependent'][domain]['type']
 
             
@@ -673,27 +471,28 @@ class DataRecommender():
                 else:
                     N_b = 0
                 print('Create billiard sample set')
-                n_planes = self.sampling_dict['continuous_dependent'][domain]['n_planes']
-                c_planes = self.sampling_dict['continuous_dependent'][domain]['c_planes']
-                x_test, eta = self.create_test_set_billiardwalk(
-                    self.sampling_dict['continuous_dependent'][domain]['x0'],
-                    n_planes,c_planes,global_points,
-                                        N_boundary=N_b)
+                if twoD:
+                    n_planes = self.sampling_dict['continuous_dependent'][domain]['n_planes_2d']
+                    c_planes = self.sampling_dict['continuous_dependent'][domain]['c_planes_2d']
+                    perturb = self.sampling_dict['continuous_dependent'][domain]['2d_perturb']
+                    self.x0_2d, eta_2d = self.create_test_set_billiardwalk(self.x0_2d,n_planes,c_planes,global_points,N_boundary=N_b)
+                    otheretas= np.zeros((np.shape(eta_2d)[0],self.dim-2))
+                    # if rnd>5:
+                    otheretas += perturb*(np.random.rand(*otheretas.shape)-.5)
+                    eta = np.hstack((eta_2d,otheretas))
+                else:
+                    n_planes = self.sampling_dict['continuous_dependent'][domain]['n_planes']
+                    c_planes = self.sampling_dict['continuous_dependent'][domain]['c_planes']
+                    self.x0, eta = self.create_test_set_billiardwalk(self.x0,n_planes,c_planes,global_points,N_boundary=N_b)
             output = np.hstack((output,eta[0:global_points,:]))
-            # self.type_criterion_of_input = np.hstack((self.type_criterion_of_input,np.zeros(1)))
         for domain in self.sampling_dict['continuous_independent']:
-            # outputorder += self.sampling_dict['continuous_independent'][domain]['dim']*self.sampling_dict['continuous_independent'][domain]['values']
             range = self.sampling_dict['continuous_independent'][domain]
             [dim] = self.dict.get_individual_keys(domain,['dimensions'])
             random_continous = np.random.uniform(low=range[0], high=range[1], size=(global_points,dim))
             output = np.hstack((output,random_continous))
-
-
         
 
         for domain in self.sampling_dict['discrete']:
-            # print(self.sampling_dict['discrete'][domain])
-            # outputorder += self.sampling_dict['discrete'][domain]['dim']*self.sampling_dict['discrete'][domain]['values']
             range = self.sampling_dict['discrete'][domain]
             [dim] = self.dict.get_individual_keys(domain,['dimensions'])
             random_discrete = np.random.choice(range,global_points*dim)
@@ -708,8 +507,10 @@ class DataRecommender():
 
 
 
-
-        self.write(rnd, test_set, output)       
+        if twoD:
+            self.write(rnd, "billiardwalk_2d", output)  
+        else:
+            self.write(rnd, test_set, output)       
 
 
     def relevent_columns(self,inputs):
@@ -822,10 +623,11 @@ class DataRecommender():
         # Get the corresponding x2, x3, and y values for the indices
         result = df.loc[idx, resultlist]
         # print(result[0:2,:])
+        # np.random.shuffle(result)
+        result= result.sample(frac=1).reset_index(drop=True)
         temp = self.T*np.ones((np.shape(result)[0],1))
-        input =[result,T]
+        input =[result,temp]
         input_local = self.find_new_points(input,self.lowest_repeat_points,self.lowest_repeat,[self.lowest_perturb,.5],'lowest_free_energy')
-        print(input_local)
         input_local = self.combine_list(input_local)
 
         # input_local = np.hstack((result,temp))
@@ -881,26 +683,29 @@ class DataRecommender():
     def read_recommended(self,rnd):
         return np.loadtxt(self.OutputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt')
 
-    def append(self,rnd,newpoints):
+    def append(self,rnd,newpoints,onlyInitial=False):
         # initial = np.loadtxt(self.OutputFolder+'data/data_recommended/initial_rnd'+str(rnd)+'.txt')
         # output = np.vstack((initial,newpoints))
         # Append newpoints to the initial_rnd file
-        with open(self.OutputFolder + 'data/data_recommended/initial_rnd' + str(rnd) + '.txt', 'a') as f:
-            np.savetxt(f, newpoints, fmt='%.12f')
+        if newpoints is not None:
+            with open(self.OutputFolder + 'data/data_recommended/initial_rnd' + str(rnd) + '.txt', 'a') as f:
+                np.savetxt(f, newpoints, fmt='%.12f')
 
-        # Append newpoints to the rnd file
-        with open(self.OutputFolder + 'data/data_recommended/rnd' + str(rnd) + '.txt', 'a') as f:
-            np.savetxt(f, newpoints, fmt='%.12f')
+            if not onlyInitial:
+            # Append newpoints to the rnd file
+                with open(self.OutputFolder + 'data/data_recommended/rnd' + str(rnd) + '.txt', 'a') as f:
+                    np.savetxt(f, newpoints, fmt='%.12f')
 
     def choose_points(self,rnd):
+        kept_points=[]
         if not os.path.exists(self.OutputFolder+'data/data_recommended/initial_rnd'+str(rnd)+'.txt'):
+            print("path doesn't exist")
             output = np.empty((0,15))
             np.savetxt(self.OutputFolder+'data/data_recommended/initial_rnd'+str(rnd)+'.txt',
                     output,
                     fmt='%.12f',
                     header=self.header)
-        kept_points=[]
-        if rnd > 30:
+        elif rnd >50:
             print('Begin Reduction of Points, round ',rnd,'...')
             new_points = self.read_initial_recommended(rnd)
             old_points = self.read_recommended(0)
@@ -929,55 +734,18 @@ class DataRecommender():
                 prev_score = normalized_scores[indices[j]]
                 curr_score = normalized_scores[indices[i]]
                 diff = curr_score-prev_score
-                compare = np.random.rand()*np.average(normalized_scores)
-                # print('compare',compare,'versus current',curr_score)
-                # print(curr_score)
+                # compare = np.random.rand()*np.average(normalized_scores)
+                compare = np.random.rand()*np.max(normalized_scores)
                 if (curr_score > prev_score or curr_score > compare) and curr_score != 0:
                     kept_points.append(new_points[indices[i],:])
                     kept_scores.append(normalized_scores[indices[i]])
                     kept_indices.append(indices[i])
                     j=i
-            # print('original num',n)
-            # print('kept num',len(kept_scores))
-            # print('max normalized scores',np.max(normalized_scores))
-            # print('max kept scores',np.max(kept_scores))
-
-            # print(self.type_criterion)
-            
-            # print('np.aranage(n)',np.shape(np.arange(n)))
-            # print('normalized scores', np.shape(normalized_scores))
-            # print('color',np.shape(new_points[:,-1]))
-
-            # value_to_color = {
-            #     1: 'red',
-            #     2: 'blue',
-            #     3: 'green',
-            #     4: 'purple',
-            #     5: 'orange',
-            #     6: 'grey'
-            # }
-
-            # # Create a list of colors based on the values in new_points[:, -1]
-            # colors = [value_to_color[val+1] for val in new_points[:, -1]]
-
 
             figure =plt.figure()
             # Create the scatter plot
             scatter = plt.scatter(np.arange(n), normalized_scores, s=100, c=new_points[:, -1])
 
-            # Create a colormap
-            # cmap = plt.cm.get_cmap('viridis', 6)  # Change 'viridis' to any colormap you prefer
-
-            # Map values to colors using the colormap
-            # colors = cmap(new_points[:, -1] / 5)  # Normalize to [0, 1] for the colormap
-
-
-
-            # scatter=plt.scatter(np.arange(n), normalized_scores,c=new_points[:,-1])
-            # seen = set()
-            # values = [x for x in new_points[:,-1] if not (x in seen or seen.add(x))]
-            # colors = [self.get_key(self.type_criterion,val) for val in values]
-            # plt.scatter(kept_indices, kept_scores,c = new_points[kept_indices,-1],marker="*")
             plt.scatter(kept_indices, kept_scores,s=50,c = 'k',marker="*")
             legend1 = plt.legend(*scatter.legend_elements(), title="Names", loc='upper left')
             # legend2 = plt.legend([colors])
@@ -988,8 +756,6 @@ class DataRecommender():
         else:
             kept_points = self.read_initial_recommended(rnd)
 
-        # print('rnd ',rnd)
-        # print('kept_points',kept_points[0:5,:])
          
         np.savetxt(self.OutputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt',
                     kept_points,
@@ -1003,28 +769,72 @@ class DataRecommender():
         return None  # Value not found in dictionary
     
     def get_trained_points(self,rnd, points):
-        data=np.genfromtxt(self.OutputFolder + 'data/data_sampled/CASMresults'+str(rnd)+'.txt',dtype=np.float32)
+        # print('points shape',np.shape(points))
+        data=np.genfromtxt(self.OutputFolder + 'data/data_sampled/CASMresults'+str(rnd)+'.txt',dtype=np.float64)
+        
         mu_values = []
+        derivative_dim = self.derivative_dim  # Use shorthand for better readability
+        
+        # Preprocess data into a dictionary for faster lookup
+        kappa_dict = {tuple(np.round(row[:derivative_dim], decimals=6)): row[-derivative_dim:] for row in data}
+        # print(points[0])
+        # print(kappa_dict)
+
+        def create_key(array, dim, precision=6):
+            return tuple(np.round(array[:dim], decimals=precision))
+
+        # Create the dictionary with consistent key creation
+        kappa_dict = {create_key(kappa, derivative_dim): kappa[-derivative_dim:] for kappa in data}
+
+        # for kappa in data:
+        #     key = create_key(kappa, derivative_dim)
+        #     # key = tuple(np.round(kappa[:derivative_dim], decimals=7))  # Optional: rounding for precision
+        #     print('key',type(key))
+        #     if key in kappa_dict:
+        #         print('append',kappa_dict[key])
+
+        i=0
+        # I = np.ones((np.shape(points)[0]), dtype=int)
+        I= np.full(np.shape(points)[0], True)
+
         for kappa in points:
-            # Find the row in the data where the kappa matches
-            for row in data:
-                if np.allclose(row[:self.derivative_dim], kappa[:self.derivative_dim]):
-                    mu_values.append(row[-self.derivative_dim:])
-                    break
-        return np.array(mu_values)
-        #find points in inputs
-        #return outputs 
+            key = create_key(kappa, derivative_dim)
+            
+            if key in kappa_dict:
+                # print('append',kappa_dict[key])
+                # print('key',key)
+                # print('mu_og',kappa_dict[key])
+                mu_values.append(kappa_dict[key])
+            else:
+                # print('Key not found!',key)
+                I[i]=False
+                # print(I[i])
+            i+=1
+
+        I.astype(bool)
+        
+        return np.array(mu_values),I
 
     def diff_in_mu(self,mu0,mu1):
-        # print('mu0',mu0[0:2,:])
-        # print('mu1',mu1[0:2,:])
         mse = mean_squared_error(mu1,mu0)
         return mse
 
 
     def determine_improvement(self,rnd):
+        # data=np.genfromtxt(self.OutputFolder + 'data/data_sampled/CASMresults'+str(rnd)+'.txt',dtype=np.float64)
         points = self.read_recommended(rnd)
+
+        # print('points',points)
         
+
+        #find actual values of mu
+        mu_real,I = self.get_trained_points(rnd,points) 
+
+
+        # print(np.shape(points))
+        points = points[I,:]
+        # print(np.shape(points))
+
         # predict with old model
         pred_new = self.model.predict([points[:,:self.dim],points[:,self.dim:]])
         
@@ -1033,8 +843,6 @@ class DataRecommender():
         pred_old = self.model.predict([points[:,:self.dim],points[:,self.dim:]])
         self.model.load_trained_model(rnd) # should be rnd or rnd-1? 
 
-        #find actual values of mu
-        mu_real = self.get_trained_points(rnd,points) 
 
         #current weights
 
@@ -1052,17 +860,24 @@ class DataRecommender():
         mu_new = pred_new[1]
         # mu_real = real_data
 
-        # print('mu_new',np.shape(mu_new))
-        # print('mu_real',np.shape(mu_real))
-        # print('categories',categories)
-        # print('self.type_criterion',self.type)
+        type_averages_new = {
+        category: mean_squared_error(
+            mu_new[categories == self.type_criterion[category]],
+            mu_real[categories == self.type_criterion[category]]
+        ) if (categories == self.type_criterion[category]).sum() > 0 else 0
+        for category in self.type_criterion
+        }
 
-        type_averages_new = {category: mean_squared_error(mu_new[categories == self.type_criterion[category]],mu_real[categories == self.type_criterion[category]]) for category in self.type_criterion}
-        type_averages_old = {category: mean_squared_error(mu_old[categories == self.type_criterion[category]],mu_real[categories == self.type_criterion[category]]) for category in self.type_criterion}
+        type_averages_old = {
+            category: mean_squared_error(
+                mu_old[categories == self.type_criterion[category]],
+                mu_real[categories == self.type_criterion[category]]
+            ) if (categories == self.type_criterion[category]).sum() > 0 else 0
+            for category in self.type_criterion
+        }
 
-
-        # print('type_averages_new',type_averages_new)
-        # print('type_averages_old',type_averages_old)
+        print('type_averages_new',type_averages_new)
+        print('type_averages_old',type_averages_old)
 
         # Calculate the average improvement in MSE for each type
         type_improvements = {category: type_averages_old[category] - type_averages_new[category] for category in self.type_criterion}
@@ -1093,33 +908,35 @@ class DataRecommender():
         return False
 
 
-    def reweight_criterion(self, rnd,type_improvements):
-        
-        # print('self.weights',self.weights)
+    def reweight_criterion(self, rnd, type_improvements):
+        updated_indices = []  # List to track which weights are being updated
+
         for category in self.type_criterion:
-            if category != 'QBC' and not (category == 'hessian' and self.non_convexities_points_found==False):
-                # print('category',category)
-                # print('category type',self.type_criterion[category])
+            if category != 'QBC' and not (category == 'hessian' and self.non_convexities_points_found == False):
+                print('category', category)
                 improvement = type_improvements[category]
-                # print('improvement', improvement)
+                print('improvement', improvement)
 
                 if not isnan(improvement):
-                    self.weights[self.type_criterion[category]] += self.alpha * improvement
-                # if improvement > 0:
-                #     # Increase the weight for this type if there's improvement
-                #     self.weights[self.type_criterion[category]] += self.alpha * improvement
-                # else:
-                #     # Decrease the weight for this type if there's no improvement
-                #     self.weights[self.type_criterion[category]] -= self.alpha * abs(improvement)
-                if self.weights[self.type_criterion[category]] <0:
-                    self.weights[self.type_criterion[category]]=0
-                
+                    index = self.type_criterion[category]
+                    self.weights[index] += self.alpha * improvement
+                    # Ensure no negative weights
+                    if self.weights[index] < 0:
+                        self.weights[index] = 0
+                    updated_indices.append(index)
 
-    # Normalize weights to ensure they sum up to 1
-        total_weight = sum(self.weights)
-        self.weights = (self.weights/total_weight)*len(self.weights)
-        print('self.weights',self.weights)
-        # self.weight={category: weight / total_weight for category, weight in self.weights.items()}
+        # Normalize only updated weights
+        total_weight = sum(self.weights[index] for index in updated_indices)
+        if total_weight > 0:  # Avoid division by zero
+            for index in updated_indices:
+                self.weights[index] = (self.weights[index] / total_weight) * len(updated_indices)
+
+        # Save the updated weights
+        file_path = self.OutputFolder + 'data/data_recommended/weights.txt'
+        with open(file_path, 'a') as f:
+            np.savetxt(f, np.hstack((rnd, self.weights)).reshape(1, -1), fmt='%.6f', delimiter=' ')
+        print('self.weights', self.weights)
+    
     
     def return_weights_default(self):
         self.weights = np.ones(len(self.type_criterion))
@@ -1128,10 +945,12 @@ class DataRecommender():
 
 
 
-    def explore_extended(self,rnd):
+    def explore_extended(self,rnd,twoD=True):
 
 
         global_points = self.prediction_points
+        if twoD:
+            global_points_2d = round(self.prediction_points*self.points_2d)
         output = np.ones((global_points,1))
         outputorder = []
 
@@ -1160,21 +979,25 @@ class DataRecommender():
             # print(test_set)
             if test_set == 'billiardwalk':
         # sample quasi-uniformly
-                if rnd<6:
-                    N_b = round(global_points/4)
-                else:
-                    N_b = 0
-                print('Create billiard sample set')
+                N_b = round(global_points/4)
                 n_planes = self.sampling_dict['continuous_dependent'][domain]['n_planes']
                 c_planes = self.sampling_dict['continuous_dependent'][domain]['c_planes']
-                x_test, eta = self.create_test_set_billiardwalk(
-                    self.sampling_dict['continuous_dependent'][domain]['x0'],
-                    n_planes,c_planes,global_points,
-                                        N_boundary=N_b)
-            output = np.hstack((output,eta[0:global_points,:]))
-            # self.type_criterion_of_input = np.hstack((self.type_criterion_of_input,np.zeros(1)))
+                self.x0, eta = self.create_test_set_billiardwalk(self.x0,n_planes,c_planes,global_points,N_boundary=N_b)
+                print('Create billiard sample set')
+                print('eta',np.shape(eta))
+                if twoD and global_points_2d >1:
+                    n_planes = self.sampling_dict['continuous_dependent'][domain]['n_planes_2d']
+                    c_planes = self.sampling_dict['continuous_dependent'][domain]['c_planes_2d']
+                    perturb = self.sampling_dict['continuous_dependent'][domain]['2d_perturb']
+                    self.x0_2d, eta_2d = self.create_test_set_billiardwalk(self.x0_2d,n_planes,c_planes,global_points_2d,N_boundary=N_b)
+                    otheretas= np.zeros((np.shape(eta_2d)[0],self.dim-2))
+                    otheretas += perturb*(np.random.rand(*otheretas.shape)-.5)
+                    eta_2d = np.hstack((eta_2d,otheretas))
+                    I = np.shape(output)[0]- np.shape(eta_2d)[0]
+                    eta= np.vstack((eta[:I,:],eta_2d))
+                output = np.hstack((output,eta))
+       
         for domain in self.sampling_dict['continuous_independent']:
-            # outputorder += self.sampling_dict['continuous_independent'][domain]['dim']*self.sampling_dict['continuous_independent'][domain]['values']
             range = self.sampling_dict['continuous_independent'][domain]
             [dim] = self.dict.get_individual_keys(domain,['dimensions'])
             random_continous = np.random.uniform(low=range[0], high=range[1], size=(global_points,dim))
@@ -1184,28 +1007,19 @@ class DataRecommender():
         
 
         for domain in self.sampling_dict['discrete']:
-            # print(self.sampling_dict['discrete'][domain])
-            # outputorder += self.sampling_dict['discrete'][domain]['dim']*self.sampling_dict['discrete'][domain]['values']
             range = self.sampling_dict['discrete'][domain]
             [dim] = self.dict.get_individual_keys(domain,['dimensions'])
             random_discrete = np.random.choice(range,global_points*dim)
             random_discrete = np.reshape(random_discrete,(global_points,dim))
             output = np.hstack((output,random_discrete))
         
-    #EDIT - reorder these to match input_alias 
-
-        # print(self.type_criterion_of_input)
         output = output[:,1:]
-         ## EDIT - temporary 
-        # output = output[0.5-np.abs(output[:,0]-0.5) > np.abs(output[:,1]) ]
 
-
-
-        # output = np.hstack((output,self.type_criterion[type]*np.ones((np.shape(output)[0],1))))
+        if os.path.isfile(self.OutputFolder+'data/data_recommended/global_prediction_points_rnd'+str(rnd-1)+'.txt'):
+            os.remove(self.OutputFolder+'data/data_recommended/global_prediction_points_rnd'+str(rnd-1)+'.txt')
 
         np.savetxt(self.OutputFolder+'data/data_recommended/global_prediction_points_rnd'+str(rnd)+'.txt',output,fmt='%.12f',
                     header=self.header)
-    
 
     def query_by_committeee(self,rnd,set_size):
         print('Query by committee rnd',rnd)
@@ -1218,17 +1032,28 @@ class DataRecommender():
 
 
         for i in range(set_size):
-            predictions[i,:,:] = np.loadtxt(self.OutputFolder + 'training/predictions/prediction_{}_{}.json'.format(rnd,i))
+            try:
+                predictions[i,:,:] = np.loadtxt(self.OutputFolder + 'training/predictions/prediction_{}_{}.json'.format(rnd,i))
+            except:
+                print('Could not find ',self.OutputFolder + 'training/predictions/prediction_{}_{}.json'.format(rnd,i))
+
+        print(np.shape(predictions))
+
+        predictions = predictions[~np.all(predictions == 0, axis=(1, 2))]
+
+        print(np.shape(predictions))
+
+        pred_set_size = np.shape(predictions)[0]
 
         avg = np.zeros((np.shape(data)[0],self.inputs_dim))
-        for i in range(set_size):
+        for i in range(pred_set_size):
             avg += predictions[i,:,:]
-        avg = avg/set_size
+        avg = avg/pred_set_size
 
         flucuation=np.zeros((np.shape(data)[0],self.inputs_dim))
-        for i in range(set_size):
+        for i in range(pred_set_size):
             flucuation += (predictions[i,:,:]- avg)**2
-        flucuation = flucuation/set_size
+        flucuation = flucuation/pred_set_size
 
         # print(np.shape(predictions))
 
@@ -1254,7 +1079,7 @@ class DataRecommender():
         # print('inputs3',np.shape(input_local))
         input_local = self.combine_list(input_local)
 
-        self.write(rnd+1, 'QBC', data_sorted)
+        self.write(rnd+1, 'QBC', input_local)
 
 
     def predict_explore_extended(self,rnd):
@@ -1273,18 +1098,20 @@ class DataRecommender():
         eigen = self.eigenvalues.copy()
         def check_negative_eigenvalues(eigenvalues):
         #Check if any of the eigenvalues for each point is less than zero
-            return np.any(eigenvalues < 0, axis=1)
+            # return np.any(eigenvalues < 0, axis=1)
+            return eigenvalues[:,0] < .01
 
         # print('eigenvalues',eigen[0:5,:])
 
         I = check_negative_eigenvalues(eigen)
         # print('I', I[0:5])
-        print('shape of nonconvexities unfiltered',np.shape(inputs))
+        # print('shape of nonconvexities unfiltered',np.shape(inputs))
         inputs = inputs[I,:]
-        print('shape of nonconvexities filtered',np.shape(inputs))
+        # print('shape of nonconvexities filtered',np.shape(inputs))
         input = [inputs[:,0:self.dim],inputs[:,self.dim:]]
         input_local = self.find_new_points(input, self.non_convexities_repeat_points, self.non_convexities_repeat,[self.non_convexities_perturb,0.5], 'non_convexities')
         # print('inputs3',np.shape(input_local))
+        # print('non_convexitites energy', input_local)
         input_local = self.combine_list(input_local)
 
         # print('inputs4',np.shape(input_local))
@@ -1307,7 +1134,10 @@ class DataRecommender():
         sorted_indices = np.argsort(sensitivity_score)[::-1]
         sorted_inputs = inputs[sorted_indices]
         input = [inputs[:,0:self.dim],inputs[:,self.dim:]]
+        # print('sensitivity',self.sensitivity_repeat_points,self.sensitivity_repeat)
+        # print('input',input)
         input_local = self.find_new_points(input, self.sensitivity_repeat_points, self.sensitivity_repeat,[self.sensitivity_perturb,0.5], 'sensitivity')
+        # print('input_local',input_local)
         input_local = self.combine_list(input_local)
         self.write(rnd, 'sensitivity', input_local)
         # return input_local

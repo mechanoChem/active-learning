@@ -7,12 +7,14 @@ from time import sleep
 from shutil import copyfile
 from active_learning.data_collector.sampling import Sampling
 import pandas as pd
+from active_learning.data_collector.slurm_manager import submitJob, waitForAll
 
 class CASM_Sampling(Sampling):    
 
     def __init__(self,model,dictionary): 
         ## determine dictionary ie 
         super().__init__(model,dictionary)
+
         self.model = model
         self.dict = dictionary 
         [self.data_gen_source] = self.dict.get_individual_keys('Main',['data_generation_source'])
@@ -42,24 +44,29 @@ class CASM_Sampling(Sampling):
                 self.lossterms[i] = None
 
         self.global_database=False
+        name = f'CASM_{self.OutputFolder}' 
+        waitForAll(name)
 
 
     def load_single_rnd_output(self,rnd):
-        kappa = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,:self.derivative_dim]
-        eta = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,self.derivative_dim:2*self.derivative_dim]
-        mu = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,-self.derivative_dim:]
-        T = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float32)[:,-self.derivative_dim-1:-self.derivative_dim]
+        kappa = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float64)[:,:self.derivative_dim]
+        eta = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float64)[:,self.derivative_dim:2*self.derivative_dim]
+        mu = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float64)[:,-self.derivative_dim:]
+        T = np.genfromtxt('data/results'+str(rnd)+'.txt',dtype=np.float64)[:,-self.derivative_dim-1:-self.derivative_dim]
         return eta,mu,T
     
     def read(self,rnd,singleRnd=True):
-        read_data = np.genfromtxt(self.OutputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt',dtype=np.float32)
+        read_data = np.genfromtxt(self.OutputFolder+'data/data_recommended/rnd'+str(rnd)+'.txt',dtype=np.float64)
         if self.global_database:
             #if self.global_database - exclude billiardwalk points ie value =1
             return read_data[read_data[-1]!=1, :]
         else:
             return read_data
 
-    def read_from_casm(self,rnd,existingglobal=False,num0=0,num1=0):
+    def save(self,output,rnd,type):
+        np.savetxt(self.OutputFolder+'data/data_recommended/'+type+'_rnd'+str(rnd)+'.txt',output,fmt='%.12f')
+
+    def read_from_casm(self,rnd,existingglobal=False,num0=0,num1=0,explore2D=False,points_2D=False):
         # rows_to_keep = [0, 29, 30, 31]
         # rows_to_keep = [0,1,2,3,4,5,6]
         number = len(self.relevent_indices)
@@ -80,55 +87,60 @@ class CASM_Sampling(Sampling):
             if 'job' in dir:
                 if os.path.exists(self.OutputFolder + 'data/data_sampled/'+dir+'/results.json'):
                     with open(self.OutputFolder + 'data/data_sampled/'+dir+'/results.json','r') as file:
-                        data = json.load(file)
-                        if self.version == 'NiAl':
-                            kappa += np.array([data['kappa_{}'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
-                            eta += np.array([data['<op_val({})>'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
-                            phi += np.array([data['phi_{}'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
-                        elif self.version == 'LCO' or self.data_gen_source=='CASM_Surrogate':
-                            kappa += np.array([data['Bias_kappa({})'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
-                            eta += np.array([data['<order_param({})>'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
-                            phi += np.array([data['Bias_phi({})'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
-                            mu += np.array([data['<mu({})>'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
-                            T += np.array([data['T']]).T.tolist()
-                        elif self.version == 'row':    
-                            monte_path=''
-                            directory = os.path.join(self.OutputFolder + 'data/data_sampled/', dir)
-                        
-                            for filename in os.listdir(directory):
-                                if 'monte' in filename:
-                                    monte_path = os.path.join(directory, filename)
-                            if monte_path !='':
-                                with open(monte_path,'r') as file:
-                                    monte_file = json.load(file)
-                                    driver= monte_file['driver']
-                                    conditions = driver['custom_conditions']
-                                    for i in range(len(data['<comp(a)>'])):
-                                        conditions_data = conditions[i]
+                        try:
+                            data = json.load(file)
+                            if self.version == 'NiAl':
+                                kappa += np.array([data['kappa_{}'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
+                                eta += np.array([data['<op_val({})>'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
+                                phi += np.array([data['phi_{}'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
+                            elif self.version == 'LCO' or self.data_gen_source=='CASM_Surrogate':
+                                kappa += np.array([data['Bias_kappa({})'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
+                                eta += np.array([data['<order_param({})>'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
+                                phi += np.array([data['Bias_phi({})'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
+                                mu += np.array([data['<mu({})>'.format(i)] for i in range(self.Input_dim-1)]).T.tolist()
+                                T += np.array([data['T']]).T.tolist()
+                            elif self.version == 'row':    
+                                monte_path=''
+                                directory = os.path.join(self.OutputFolder + 'data/data_sampled/', dir)
+                            
+                                for filename in os.listdir(directory):
+                                    if 'monte' in filename:
+                                        monte_path = os.path.join(directory, filename)
+                                if monte_path !='':
+                                    with open(monte_path,'r') as file:
+                                        monte_file = json.load(file)
+                                        driver= monte_file['driver']
+                                        conditions = driver['custom_conditions']
+                                        for i in range(len(data['<comp(a)>'])):
+                                            conditions_data = conditions[i]
+                                            converged = data['is_converged']
 
-                                        kappa = conditions_data['order_parameter_quad_pot_target']
-                                        phi = conditions_data['order_parameter_quad_pot_vector']
-                                        phi_subset=number*[0]
-                                        kappa_subset=number*[0]
-                                        mu = number*[0]
-                                        eta = number*[0]
-                                        # eta0 = c
-                                        k=0
-                                        for j in self.relevent_indices:
-                                            eta[k] = data['<order_parameter({})>'.format(j)][i]
-                                            mu[k] =(-2*phi[j]*(eta[k]-kappa[j]))*32
-                                            phi_subset[k] = phi[j]*32*32
-                                            kappa_subset[k] = kappa[j]/32
-                                            T = conditions_data['temperature']
-                                            eta[k] = eta[k]/32
-                                            k+=1
-                                        data_points.append({
-                                            'kappa': kappa_subset,
-                                            'phi': phi_subset,
-                                            'mu': mu,
-                                            'T': T,
-                                            'eta': eta,
-                                        })
+                                            kappa = conditions_data['order_parameter_quad_pot_target']
+                                            phi = conditions_data['order_parameter_quad_pot_vector']
+                                            phi_subset=number*[0]
+                                            kappa_subset=number*[0]
+                                            mu = number*[0]
+                                            eta = number*[0]
+                                            # eta0 = c
+                                            k=0
+                                            for j in self.relevent_indices:
+                                                eta[k] = data['<order_parameter({})>'.format(j)][i]
+                                                mu[k] =(-2*phi[j]*(eta[k]-kappa[j]))*32
+                                                phi_subset[k] = phi[j]*32*32
+                                                kappa_subset[k] = kappa[j]/32
+                                                T = conditions_data['temperature']
+                                                eta[k] = eta[k]/32
+                                                k+=1
+                                            if converged[i]==True:
+                                                data_points.append({
+                                                    'kappa': kappa_subset,
+                                                    'phi': phi_subset,
+                                                    'mu': mu,
+                                                    'T': T,
+                                                    'eta': eta,
+                                                })
+                        except:
+                            print('Did not use',dir)
 
 
                     shutil.move(self.OutputFolder + 'data/data_sampled/'+dir,dirname)
@@ -160,23 +172,50 @@ class CASM_Sampling(Sampling):
             mu = -2.*phi*(eta - kappa)
 
         if existingglobal:
-            print('adding billiardpoints')
-            billardpoints = np.genfromtxt('billiardwalkpoints.txt',dtype=np.float32)[num0:num1,:]
+            points2dlen=0
+
+
+
+            if explore2D:
+                print('adding billiardpoints + 2D')
+                billardpoints = np.genfromtxt('shuffled.txt',dtype=np.float64)[round(num0*(1-points_2D)):round(num1*(1-points_2D)),:]
+                self.save(billardpoints,rnd,'billiardwalk_preexisting')
+                # print('range for billiard2D',round(self.pointcount*points_2D),'to',round(self.pointcount*points_2D)+round(self.N_global_pts*points_2D))
+                billardpoints2D = np.genfromtxt('billiard2D.txt',dtype=np.float64)[round(num0*points_2D):round(num1*points_2D),:]
+                self.save(billardpoints2D,rnd,'billiardwalk2D_preexisting')
+                points2dlen=np.shape(billardpoints2D)[0]
+                billardpoints = np.vstack((billardpoints,billardpoints2D))
+
+            else:
+                print('adding billiardpoints')
+                billardpoints = np.genfromtxt('shuffled.txt',dtype=np.float64)[num0:num1,:]
+                self.save(billardpoints,rnd,'billiardwalk_preexisting')
+            
+            originallen = np.shape(kappa)[0]
             kappa = np.vstack((kappa,billardpoints[:,:self.derivative_dim]))
             eta = np.vstack((eta,billardpoints[:,self.derivative_dim:2*self.derivative_dim]))
             phi= np.vstack((phi,billardpoints[:,2*self.derivative_dim:3*self.derivative_dim]))
             T = np.vstack((T,billardpoints[:,-self.derivative_dim-1:-self.derivative_dim]) )
             mu =np.vstack((mu,billardpoints[:,-self.derivative_dim:] ))
-            # billardpoints = np.genfromtxt('billiardwalkpoints.txt',dtype=np.float32)[self.pointcount:self.pointcount+self.N_global_pts,:]
-                    
+            output = np.hstack((kappa,T, np.zeros(np.shape(T))))
+            output = output[originallen:,:]
+            if points2dlen !=0:
+                output[-points2dlen:,-1] = 1
+        else:
+            output =None
+
+
+
+            
+            # billardpoints = np.genfromtxt('billiardwalkpoints.txt',dtype=np.float64)[self.pointcount:self.pointcount+self.N_global_pts,:]      
         self.write(rnd,kappa,eta,phi,T,mu)
-                # print(np.shape(T))
+        return output
     
 
     def write(self,rnd,kappa,eta,phi,T,mu):
 
-            
-        # print(np.shape(T))
+        print(np.shape(kappa))    
+        print(np.shape(T))
         dataOut = np.hstack((kappa,eta,phi,T,mu))
         dataOut = dataOut[~pd.isna(dataOut).any(axis=1)] #remove any rows with nan
 
@@ -382,6 +421,28 @@ class CASM_Sampling(Sampling):
                         'mv job_$SLURM_ARRAY_TASK_ID $cwd/{}data/data_sampled/'.format(self.OutputFolder)]
         return command
 
+    import os
+
+
+    def move_subfolders(self,source_dir, destination_dir):
+        # Ensure the destination directory exists
+        os.makedirs(destination_dir, exist_ok=True)
+
+        # Iterate through the items in the source directory
+        for item in os.listdir(source_dir):
+            item_path = os.path.join(source_dir, item)
+
+            # Check if the item is a directory
+            if os.path.isdir(item_path):
+                # Construct the destination path
+                dest_path = os.path.join(destination_dir, item)
+
+                # Move the subfolder to the new folder
+                shutil.move(item_path, dest_path)
+                print(f"Moved: {item_path} -> {dest_path}")
+
+
+
     def submit_job(self,command):
         if self.job_manager == 'PC':
             from subprocess import call
@@ -390,15 +451,23 @@ class CASM_Sampling(Sampling):
         else:
             if self.job_manager == 'slurm':
                 from active_learning.data_collector.slurm_manager import submitJob, waitForAll
-                specs = {'job_name':'CASM',
+                name = f'CASM_{self.OutputFolder}' 
+                specs = {'job_name':name,
                         'array': '1-{}'.format(self.N_jobs),
                         'account': self.account,
                         'wall_time': self.walltime,
                         'total_memory':self.mem,
                         'output_folder':'outputFiles',
-                        'queue': 'shared'}
-                name = 'CASM'            
+                        'queue': 'shared'}   
+                print('about to submit job')        
                 submitJob(command,specs)
                 waitForAll(name)
+                # Example usage
+                source_directory = self.dir
+                destination_directory = self.OutputFolder+ 'data/data_sampled/'
+
+                self.move_subfolders(source_directory, destination_directory)
+
+
 
 

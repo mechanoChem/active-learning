@@ -18,10 +18,10 @@ from numpy import linalg as LA
 # # model.load_trained_model(3)
 
 
-def plot_python(data,title,dim):
-    eta = data[:,0:dim]
-    mu = data[:,dim:dim*2]
-    free = data[:,dim*2:dim*2+1]
+def plot_python(data,title):
+    eta = data[:,0:7]
+    mu = data[:,7:14]
+    free = data[:,14:15]
     eta0_1= eta[:,0]
     eta1_1=eta[:,1]
     g = free.reshape((50,50))-min(free)
@@ -101,10 +101,8 @@ def matlab(title):
 
 def predict_and_save(model,eta,T,title):
     pred = model.predict([eta,T])
-    print("title", title)
     free = pred[0]
     mu = pred[1]
-    print('mu pred',mu.shape)
     grad = pred[2]
     eigen = np.zeros(mu.shape)
     eigenvector = np.zeros(grad.shape)
@@ -116,18 +114,8 @@ def predict_and_save(model,eta,T,title):
     return data
     
 
-def pred_training_points(rnd,model,dict):
-    [outputFolder,temp,graph,dir_path, dim] = dict.get_individual_keys('Main',['outputfolder','temp','graph','dir_path','derivative_dim'])
-    data = np.genfromtxt(outputFolder + 'data/data_sampled/CASMresults'+str(rnd)+'.txt',dtype=np.float64)
-    eta = data[:,:dim]
-    mu = data[:,-dim:]
-    print("mu from casm",mu)
-    T = np.ones((np.shape(eta)[0],1))*temp
-    data1= predict_and_save(model,eta,T,f'{outputFolder}/training_points_predicted_rnd{rnd}')
-
-
 def graph(rnd, model,dict):
-    [outputFolder,temp,graph,dir_path, dim] = dict.get_individual_keys('Main',['outputfolder','temp','graph','dir_path','derivative_dim'])
+    [outputFolder,temp,graph,dir_path] = dict.get_individual_keys('Main',['outputfolder','temp','graph','dir_path'])
     # model.load_trained_model(rnd)
 
     # full composition range
@@ -142,9 +130,9 @@ def graph(rnd, model,dict):
             title1 = outputFolder+'graphs/rnd{}'.format(rnd)
 
         
-        eta = np.genfromtxt(data,dtype=np.float32)[:,:dim]
+        eta = np.genfromtxt(data,dtype=np.float32)[:,:7]
         T = np.ones((np.shape(eta)[0],1))*temp
-        # data1= predict_and_save(model,eta,T,title1)
+        data1= predict_and_save(model,eta,T,title1)
 
 
         #near orderings 
@@ -157,7 +145,7 @@ def graph(rnd, model,dict):
         eta = np.hstack((x1_flat,x2_flat,x1_flat*0,x1_flat*0,x1_flat*0,x1_flat*0,x1_flat*0))
         T = np.ones((np.shape(eta)[0],1))*temp
         title2 = outputFolder+'graphs/rnd{}'.format(rnd)
-        # data2 = predict_and_save(model,eta,T,title2)
+        data2 = predict_and_save(model,eta,T,title2)
 
         if graph=='both' or graph=='python':
             plot_python(data1,title1)

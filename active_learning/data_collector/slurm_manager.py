@@ -34,7 +34,7 @@ def submitJob(command,specs={},is_dnsml=False,num=0,slurmdirectory='./'):
     default = {'wall_time':'4:00:00',
                'nodes':1,
                'ntasks-per-node':1,
-               'total_memory':'10G',
+               'total_memory':'1G',
                'job_name':'default',
                'output_folder':'output',
                'queue':'shared'}

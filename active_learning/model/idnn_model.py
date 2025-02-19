@@ -11,6 +11,7 @@ import random
 from tensorflow.keras.models import load_model
 import json,os
 import tensorflow as tf
+import random
 
 
 
@@ -18,6 +19,9 @@ class IDNN_Model(Model):
     def __init__(self, dict):
         super().__init__()
         self.dict =dict
+        # random.seed(42)
+        # np.random.seed(42)
+        # tf.random.set_seed(42)
 
         [self.layers,self.neurons,self.activation,self.dropout,self.transform_path,
          self.lossterms,self.loss_weights,self.optimizer,self.learning,self.lr_decay,
@@ -69,8 +73,10 @@ class IDNN_Model(Model):
             [dim] =self.dict.get_individual_keys(inputs,['dimensions'])
             column_list_input.append(data[:,position:dim+position])
             position+=dim
+
         for output in self.output_alias:
             [dim] =self.dict.get_individual_keys(output,['dimensions'])
+            print('dimensions of output',dim)
             column_list_output.append(data[:,position:dim+position])
             position+=dim
         return column_list_input,column_list_output
@@ -156,14 +162,18 @@ class IDNN_Model(Model):
                 unique_inputs=True,
                 final_bias=True)
         self.opt = 'keras.optimizers.RMSprop'
-        loaded_model.load_weights(self.outputFolder+ 'training/model_{}/model.weights.h5'.format(rnd))
+        # loaded_model.load_weights(self.outputFolder+ 'training/model_{}/model.weights.h5'.format(rnd))
         loaded_model.compile(loss=self.lossterms,
                         loss_weights=self.loss_weights,
                         optimizer=eval(self.opt)(learning_rate=self.learning))
 
         etas = np.zeros((2,self.dim))
         T = np.zeros((2,1))
+        loaded_model.fit([etas,etas,etas,T],[etas,etas,etas],epochs=2,verbose=0)
+        # print(self.outputFolder+ 'training/model_{}/model.weights.h5'.format(rnd))
+        loaded_model.load_weights(self.outputFolder+ 'training/model_{}/model.weights.h5'.format(rnd))        
         self.model = loaded_model
+        print('loaded')
         return loaded_model
 
     def parameter_int(self,keys):
@@ -281,9 +291,8 @@ class IDNN_Model(Model):
                 else:
                     input_non_derivative = np.hstack((input_non_derivative,inputs[:][i]))
                 k+=1
-        
+        input_zeros = np.zeros(np.shape(input_new))
         if unique_inputs:
-            input_zeros = np.zeros(np.shape(input_new))
             inputs = [input_zeros,input_new,input_new,input_non_derivative]
         else:
             inputs = [input_new,input_non_derivative]
@@ -298,8 +307,8 @@ class IDNN_Model(Model):
                 else:
                     output_new = np.hstack((output_new,output[:][i]))
 
-
-            return inputs, [np.zeros((np.shape(output_new)[0])),output_new,output_new*0 ]
+            # return inputs, [input_zeros,output_new,output_new*0 ]
+            return inputs, [np.zeros((np.shape(output_new)[0],1)),output_new,output_new*0 ]
 
 
     def surrogate_training(self,rnd,model,inputs,output,set_i=None,learning_rate='default'):
@@ -308,22 +317,19 @@ class IDNN_Model(Model):
         if learning_rate == 'default':
             learning_rate = self.learning
 
-        
         inputs,output = self.input_columns_to_training(inputs,output)
         inds = np.arange(inputs[0].shape[1])
 
         if self.WeightRecent:
             print('WeightRecent')
             # weight the most recent high error points as high as all the other points
-            n_points = inputs[0].shape[1]#len(inputs[0])
+            n_points = inputs[0].shape[0]#len(inputs[0])
             sample_weight = np.ones(n_points)
             i,o = self.load_data(rnd,singleRnd=True)
-            recentpoints = i[0].shape[1]
-            print('n_points',n_points)
-            print('recentpoints',recentpoints)
+            recentpoints = i[0].shape[0]
             if rnd > 0:
                 sample_weight[-recentpoints:] = max(1,(n_points-recentpoints)/(recentpoints))
-            sample_weight = sample_weight[inds]
+            # sample_weight = sample_weight[inds]
 
 
 
@@ -341,12 +347,16 @@ class IDNN_Model(Model):
         selective_logger= SelectiveProgbarLogger(verbose=1, epoch_interval=50)
         callbackslist = [csv_logger, reduceOnPlateau,selective_logger]
         if EarlyStopping:
-            print('Early stopping')
             earlyStopping = EarlyStopping(patience=self.patience*2)
             callbackslist.append(earlyStopping)
 
+
         
         if self.WeightRecent:
+            try:
+                print('sample_weight_size',np.shape(sample_weight))
+            except:
+                print('could not print size')
             history =model.fit(inputs,
                     output,
                     validation_split=self.validation_split,
@@ -381,34 +391,49 @@ class IDNN_Model(Model):
 
 
         def transforms(x):    
-            h0 = x[:,0]
-            h1 = 2./3.*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2 +
-                        x[:,4]**2 + x[:,5]**2 + x[:,6]**2)
-            h2 = 8./3.*(x[:,1]**4 + x[:,2]**4 + x[:,3]**4 +
-                        x[:,4]**4 + x[:,5]**4 + x[:,6]**4)
-            h3 = 4./3.*((x[:,1]**2 + x[:,2]**2)*
-                        (x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) +
-                        (x[:,3]**2 + x[:,6]**2)*(x[:,4]**2 + x[:,5]**2))
-            h4 = 16./3.*(x[:,1]**2*x[:,2]**2 + x[:,3]**2*x[:,6]**2 + x[:,4]**2*x[:,5]**2)
-            h5 = 32./3.*(x[:,1]**6 + x[:,2]**6 + x[:,3]**6 +
-                            x[:,4]**6 + x[:,5]**6 + x[:,6]**6)
-            h6 = 8./3.*((x[:,1]**4 + x[:,2]**4)*
-                        (x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) +
-                        (x[:,3]**4 + x[:,6]**4)*(x[:,4]**2 + x[:,5]**2) + 
-                        (x[:,1]**2 + x[:,2]**2)*
-                        (x[:,3]**4 + x[:,4]**4 + x[:,5]**4 + x[:,6]**4) +
-                        (x[:,3]**2 + x[:,6]**2)*(x[:,4]**4 + x[:,5]**4))
-            h7 = 16./3.*(x[:,1]**2*x[:,2]**2*(x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) + 
-                            x[:,3]**2*x[:,6]**2*(x[:,1]**2 + x[:,2]**2 + x[:,4]**2 + x[:,5]**2) + 
-                            x[:,4]**2*x[:,5]**2*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2 + x[:,6]**2))
-            h8 = 32./3.*(x[:,1]**4*x[:,2]**2 + x[:,3]**4*x[:,6]**2 + x[:,4]**4*x[:,5]**2 +
-                            x[:,1]**2*x[:,2]**4 + x[:,3]**2*x[:,6]**4 + x[:,4]**2*x[:,5]**4)
-            h9 = 8.*(x[:,1]**2 + x[:,2]**2)*(x[:,3]**2 + x[:,6]**2)*(x[:,4]**2 + x[:,5]**2)
-            h10 = 64./5.*((x[:,1]**2 - x[:,2]**2)*(x[:,3]*x[:,5] + x[:,4]*x[:,6])*(x[:,3]*x[:,4] - x[:,5]*x[:,6]) +
-                            x[:,1]*x[:,2]*(x[:,3]**2 - x[:,6]**2)*(x[:,4]**2 - x[:,5]**2))
-            h11 = 64.*np.sqrt(5)*x[:,1]*x[:,2]*x[:,3]*x[:,4]*x[:,5]*x[:,6]
-            
-            return [h0,h1,h2,h3,h4,h5,h6,h7,h8,h9,h10,h11]
+            if self.dim==8:
+                h0 = x[:,0]
+                h1 = 2./3.*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2 +
+                            x[:,4]**2 + x[:,5]**2 + x[:,6]**2)
+                h2 = 8./3.*(x[:,1]**4 + x[:,2]**4 + x[:,3]**4 +
+                            x[:,4]**4 + x[:,5]**4 + x[:,6]**4)
+                h3 = 4./3.*((x[:,1]**2 + x[:,2]**2)*
+                            (x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) +
+                            (x[:,3]**2 + x[:,6]**2)*(x[:,4]**2 + x[:,5]**2))
+                h4 = 16./3.*(x[:,1]**2*x[:,2]**2 + x[:,3]**2*x[:,6]**2 + x[:,4]**2*x[:,5]**2)
+                h5 = 32./3.*(x[:,1]**6 + x[:,2]**6 + x[:,3]**6 +
+                                x[:,4]**6 + x[:,5]**6 + x[:,6]**6)
+                h6 = 8./3.*((x[:,1]**4 + x[:,2]**4)*
+                            (x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) +
+                            (x[:,3]**4 + x[:,6]**4)*(x[:,4]**2 + x[:,5]**2) + 
+                            (x[:,1]**2 + x[:,2]**2)*
+                            (x[:,3]**4 + x[:,4]**4 + x[:,5]**4 + x[:,6]**4) +
+                            (x[:,3]**2 + x[:,6]**2)*(x[:,4]**4 + x[:,5]**4))
+                h7 = 16./3.*(x[:,1]**2*x[:,2]**2*(x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) + 
+                                x[:,3]**2*x[:,6]**2*(x[:,1]**2 + x[:,2]**2 + x[:,4]**2 + x[:,5]**2) + 
+                                x[:,4]**2*x[:,5]**2*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2 + x[:,6]**2))
+                h8 = 32./3.*(x[:,1]**4*x[:,2]**2 + x[:,3]**4*x[:,6]**2 + x[:,4]**4*x[:,5]**2 +
+                                x[:,1]**2*x[:,2]**4 + x[:,3]**2*x[:,6]**4 + x[:,4]**2*x[:,5]**4)
+                h9 = 8.*(x[:,1]**2 + x[:,2]**2)*(x[:,3]**2 + x[:,6]**2)*(x[:,4]**2 + x[:,5]**2)
+                h10 = 64./5.*((x[:,1]**2 - x[:,2]**2)*(x[:,3]*x[:,5] + x[:,4]*x[:,6])*(x[:,3]*x[:,4] - x[:,5]*x[:,6]) +
+                                x[:,1]*x[:,2]*(x[:,3]**2 - x[:,6]**2)*(x[:,4]**2 - x[:,5]**2))
+                h11 = 64.*np.sqrt(5)*x[:,1]*x[:,2]*x[:,3]*x[:,4]*x[:,5]*x[:,6]
+                
+                return [h0,h1,h2,h3,h4,h5,h6,h7,h8,h9,h10,h11]
+
+            elif self.dim==5:
+                h0 = x[:,0]
+                h1 = 1./3.*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2)
+                h2 = 1./3.*(x[:,1]**4 + x[:,2]**4 + x[:,3]**4)
+                h3 = 1./3.*((x[:,1]**2)*(x[:,2]**2 + x[:,3]**2) + (x[:,2]**2*x[:,3]**2))
+                h4 = 1./3.*(x[:,1]**6 + x[:,2]**6 + x[:,3]**6)
+                h5 = 1./6.*((x[:,1]**4)*( x[:,2]**2 + x[:,3]**2) +(x[:,2]**4)*( x[:,1]**2 + x[:,3]**2)+(x[:,3]**4)*( x[:,2]**2 + x[:,1]**2)  )            
+                h6 = (x[:,1]**2)*(x[:,2]**2)*(x[:,3]**2)
+                
+                return [h0,h1,h2,h3,h4,h5,h6]
+            else:
+                return x
+            return 
 
         return transforms
     

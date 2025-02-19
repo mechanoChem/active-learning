@@ -42,6 +42,7 @@ dictionary = Dictionary(input_path)
 
 from active_learning.model.idnn_model import IDNN_Model 
 model = IDNN_Model(dictionary)
+print('loading rnd',rnd)
 model.load_trained_model(rnd)
 
 phi = []

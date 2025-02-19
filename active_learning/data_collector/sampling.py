@@ -10,7 +10,7 @@ class Sampling():
 
 
     # def read(self,rnd,singleRnd=True):
-    #     return np.genfromtxt('/Users/jamieholber/Software/active-learning/Output/data/data_recommended/rnd'+str(rnd)+'.txt',dtype=np.float32)
+    #     return np.genfromtxt('/Users/jamieholber/Software/active-learning/Output/data/data_recommended/rnd'+str(rnd)+'.txt',dtype=np.float64)
 
 
     # def write(self,rnd):

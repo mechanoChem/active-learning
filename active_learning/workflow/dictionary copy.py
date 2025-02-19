@@ -270,7 +270,6 @@ class Dictionary():
 
 
         self.dict['Main']['input_dim'] = input_dim
-        print('derivative dim',derivative_dim)
         self.dict['Main']['derivative_dim'] = derivative_dim    
         self.dict['Main']['output_dim'] = output_dim
 

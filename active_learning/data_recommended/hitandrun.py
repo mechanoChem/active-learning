@@ -166,3 +166,63 @@ def billiardwalk(x0,n_planes,c_planes,N_points,tau):
         xprev = deepcopy(x)
         
     return points, np.array(boundary)
+
+def find_boundary_points(x0,n_planes,c_planes,N_points,tau):
+
+    # Initialize (currently, assume given point is in domain) 
+    x = x0
+    xprev = x0
+    dim = len(x0)
+    R = 10*dim
+
+    center = np.zeros(dim)
+    center[0] = 0.5
+
+    boundary = []
+    points = np.zeros((N_points,dim))
+    for i in range(N_points):
+
+        while(True):
+            # Generate trajectory length
+            l = -tau*np.log(np.random.rand())
+        
+            # Get random direction
+            d = random_direction(dim)
+
+            # Do one step of the billiard walk
+            for r in range(R):
+        
+                # Find intersection with closest plane
+                neg_t, pos_t, neg_i, pos_i, count_zeros = nearest_intersections(n_planes,c_planes,x,d)
+            
+                # Check if the trajectory hits the intersection (only use positive direction)
+                if pos_t is None or not in_bounds(x,n_planes,c_planes):
+                    # Somehow went outside of bounds, or something
+                    r = R-1
+                    break
+                elif (l <= pos_t):
+                    x = x + l*d
+                    if not in_bounds(x,n_planes,c_planes):
+                        r = R-1 # try again
+                    break
+                elif count_zeros > 1:
+                    # Hit nonsmooth boundary, i.e. intersection of multiple planes
+                    r = R-1
+                    break
+                else:
+                    x = x + pos_t*d
+                    if in_bounds(x,n_planes,c_planes):
+                        boundary.append(deepcopy(x))
+                    n = inward_normal(center,n_planes[pos_i],c_planes[pos_i],x)
+                    l = l - pos_t
+                    d = d - 2*d.dot(n)*n
+            if r < (R-1):
+                break
+            else:
+                # reset to previous point, repeat
+                x = xprev
+                    
+        points[i] = deepcopy(x)
+        xprev = deepcopy(x)
+        
+    return points, np.array(boundary)
