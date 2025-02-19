@@ -5,21 +5,6 @@ import tensorflow.keras.backend as K
 import marshal, base64, types
 import numpy as np
 
-#def _Transform(transforms):
-#  """ Function to define a Keras transformation layer
-#
-#  :param transforms: A function that takes the input array x and returns a list of transformation outputs
-#  :type transforms: func 
-#
-#  :returns: A Keras Transformation layer
-#
-#  """
-#  
-#  def func(x):
-#    y = Lambda(transforms)(x)
-#    return Lambda(lambda x: K.stack(x,axis=-1))(y)
-#  return func
-
 
 class Transform(keras.layers.Layer):
   """ Class to define a Keras transformation layer

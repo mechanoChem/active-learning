@@ -121,7 +121,7 @@ class Dictionary():
             assert('optimizer' in self.dict['IDNN'])
             true_false += [['IDNN','idnn_hyperparameter'],['IDNN','idnn_train_new_idnn'],['IDNN','weightrecent'],['IDNN','earlystopping'] ]
             float_array_inputs += [['IDNN','loss_weights']]
-            paths += [['IDNN','transforms_directory']]
+            paths += [['IDNN','transforms_path']]
             if self.dict['IDNN']['idnn_hyperparameter'] == 'True':
                 int_inputs += [['IDNN_Hyperparameter','n_sets']]
                 self.set_as_str_array([['IDNN_Hyperparameter','activation'],['IDNN_Hyperparameter','optimizer']],nullallowed=True)
@@ -130,26 +130,24 @@ class Dictionary():
       
         float_inputs+= [['Main','temp']]
         true_false += [['Main','data_generation']]
+        str_array_inputs += [['Main','graph']]
         if self.dict['Main']['data_generation'] == 'True':
             if self.dict['Main']['data_generation_source'] == 'CASM':
                 paths+=[['CASM','casm_project_dir']]
-                # assert(os.path.exists(self.dict['CASM']['casm_project_dir']))
                 assert('initial_mu' in self.dict['CASM'])
                 if self.dict["CASM"]["casm_version"] == '0.3.X':
                     self.dict["CASM"]["casm_version"] = 'LCO'
-                # print(self.dict["CASM"]["phi"])
                 float_array_inputs += [['CASM','phi']]
-                int_inputs += [['CASM','n_jobs']]
+                int_inputs += [['CASM','n_jobs'],['CASM','initial_mu']]
                 int_array_inputs += [['CASM','relevent_indices']]
             if self.dict['Main']['data_generation_source'] == 'CASM_Surrogate':
-                paths += ([['CASM_Surrogate','casm_project_dir'],['CASM_Surrogate','transforms_directory']])
+                paths += ([['CASM_Surrogate','casm_project_dir'],['CASM_Surrogate','transforms_path']])
                 assert('initial_mu' in self.dict['CASM_Surrogate'])
                 assert('activation' in self.dict['CASM_Surrogate'])
                 if self.dict['CASM_Surrogate']["casm_version"] == '0.3.X':
                     self.dict['CASM_Surrogate']["casm_version"] = 'LCO'
-                # int_array_inputs += [['CASM_Surrogate','hidden_layers']]
                 float_array_inputs += [['CASM_Surrogate','phi']]#,['CASM_Surrogate','input_shape']]
-                int_inputs += [['CASM_Surrogate','n_jobs'],['CASM_Surrogate','dim']]
+                int_inputs += [['CASM_Surrogate','n_jobs'],['CASM_Surrogate','dim'],['CASM','initial_mu']]
                 int_array_inputs += [['CASM_Surrogate','relevent_indices']]
 
             if self.dict['Sampling_Job_Manager']['job_manager']=='slurm':
@@ -158,12 +156,11 @@ class Dictionary():
                 assert('mem' in self.dict['Sampling_Job_Manager'])
             
 
-        # print('exploit params',self.dict['Exploit_Parameters'])
-        true_false += [['Main','restart'],['Main','input_data'],['Main','reweight'],['Explore_Parameters','sample_external'],
+        true_false += [['Main','restart'],['Main','input_data'],['Main','reweight'],['Main','novelty'],['Explore_Parameters','sample_external'],
                        ['Exploit_Parameters','high_error'],['Exploit_Parameters','non_convexities'],
                        ['Exploit_Parameters','find_wells'],['Exploit_Parameters','lowest_free_energy'],['Exploit_Parameters','sensitivity'],['Exploit_Parameters','qbc']]
         str_array_inputs += [['Main','input_alias'],['Main','output_alias']]
-        int_inputs += [['Main','iterations'],['Main','seed'],['Main','prediction_points'],['Explore_Parameters','global_points']]
+        int_inputs += [['Main','iterations'],['Main','prediction_points'],['Explore_Parameters','global_points']]
         float_inputs += [['Main','reweight_alpha']]
 
         if self.dict['Exploit_Parameters']['non_convexities'] == 'True':
@@ -182,9 +179,6 @@ class Dictionary():
             int_array_inputs += [['Exploit_Parameters','qbc_repeat'],['Exploit_Parameters','qbc_repeat_points']]
             float_inputs+= [['Exploit_Parameters','qbc_perturb_magnitude']]
 
-        # if self.dict['Exploit_Parameters']['qbc'] == 'True':
-        #     int_inputs += [['Exploit_Parameters','qbc_points']]
-
         if self.dict['Exploit_Parameters']['lowest_free_energy'] == 'True':
             int_array_inputs+= [['Exploit_Parameters','lowest_repeat'],['Exploit_Parameters','lowest_repeat_points']]
             paths += [['Exploit_Parameters','lowest_file']]
@@ -196,14 +190,6 @@ class Dictionary():
             int_inputs += [['Explore_Parameters','external_points']]
             float_inputs += [['Explore_Parameters','external_perturb_magnitude']]
             paths += ([['Explore_Parameters','external']])
-
-        # if self.dict['Explore_Parameters']['sample_known_wells'] == 'True':
-        #     int_inputs += [['Explore_Parameters','wells_points']]
-        #     paths += ([['Explore_Parameters','wells']])
-        # if self.dict['Explore_Parameters']['sample_known_vertices'] == 'True':
-        #     int_inputs += [['Explore_Parameters','vertices_points']]
-        #     paths += ([['Explore_Parameters','vertices']])
-
 
 
         
@@ -270,7 +256,6 @@ class Dictionary():
 
 
         self.dict['Main']['input_dim'] = input_dim
-        print('derivative dim',derivative_dim)
         self.dict['Main']['derivative_dim'] = derivative_dim    
         self.dict['Main']['output_dim'] = output_dim
 

@@ -1,5 +1,4 @@
 
-from active_learning.model.model import Model 
 from active_learning.model.idnn import IDNN 
 from tensorflow import keras 
 from active_learning.model.transform_layer import Transform
@@ -15,19 +14,22 @@ import random
 
 
 
-class IDNN_Model(Model):
+class IDNN_Model():
     def __init__(self, dict):
         super().__init__()
         self.dict =dict
-        # random.seed(42)
-        # np.random.seed(42)
-        # tf.random.set_seed(42)
+
 
         [self.layers,self.neurons,self.activation,self.dropout,self.transform_path,
          self.lossterms,self.loss_weights,self.optimizer,self.learning,self.lr_decay,
          self.factor, self.patience,self.min_lr,self.EarlyStopping,self.epochs,
          self.batch_size,self.WeightRecent,self.validation_split,
          self.hyperparameter,self.train_new_idnn] = self.dict.get_category_values('IDNN')
+         
+         
+        with open(self.transform_path, "r") as f:
+            self.transform = json.load(f)
+        
 
 
         [self.input_alias,self.output_alias,self.config_path,self.outputFolder,self.dim] = self.dict.get_individual_keys('Main',['input_alias','output_alias','dir_path','outputfolder','input_dim'])
@@ -76,7 +78,6 @@ class IDNN_Model(Model):
 
         for output in self.output_alias:
             [dim] =self.dict.get_individual_keys(output,['dimensions'])
-            print('dimensions of output',dim)
             column_list_output.append(data[:,position:dim+position])
             position+=dim
         return column_list_input,column_list_output
@@ -173,7 +174,7 @@ class IDNN_Model(Model):
         # print(self.outputFolder+ 'training/model_{}/model.weights.h5'.format(rnd))
         loaded_model.load_weights(self.outputFolder+ 'training/model_{}/model.weights.h5'.format(rnd))        
         self.model = loaded_model
-        print('loaded')
+        print('Loaded trained model rnd',rnd)
         return loaded_model
 
     def parameter_int(self,keys):
@@ -263,7 +264,6 @@ class IDNN_Model(Model):
     def train(self,rnd):
         inputs, output = self.load_data(rnd,singleRnd=False) 
         if self.train_new_idnn and rnd>0:
-            print('training new idnn')
             self.set_params(rnd)
 
 
@@ -321,7 +321,6 @@ class IDNN_Model(Model):
         inds = np.arange(inputs[0].shape[1])
 
         if self.WeightRecent:
-            print('WeightRecent')
             # weight the most recent high error points as high as all the other points
             n_points = inputs[0].shape[0]#len(inputs[0])
             sample_weight = np.ones(n_points)
@@ -329,7 +328,6 @@ class IDNN_Model(Model):
             recentpoints = i[0].shape[0]
             if rnd > 0:
                 sample_weight[-recentpoints:] = max(1,(n_points-recentpoints)/(recentpoints))
-            # sample_weight = sample_weight[inds]
 
 
 
@@ -353,10 +351,6 @@ class IDNN_Model(Model):
 
         
         if self.WeightRecent:
-            try:
-                print('sample_weight_size',np.shape(sample_weight))
-            except:
-                print('could not print size')
             history =model.fit(inputs,
                     output,
                     validation_split=self.validation_split,
@@ -389,51 +383,8 @@ class IDNN_Model(Model):
 
     def IDNN_transforms(self):
 
-
-        def transforms(x):    
-            if self.dim==8:
-                h0 = x[:,0]
-                h1 = 2./3.*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2 +
-                            x[:,4]**2 + x[:,5]**2 + x[:,6]**2)
-                h2 = 8./3.*(x[:,1]**4 + x[:,2]**4 + x[:,3]**4 +
-                            x[:,4]**4 + x[:,5]**4 + x[:,6]**4)
-                h3 = 4./3.*((x[:,1]**2 + x[:,2]**2)*
-                            (x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) +
-                            (x[:,3]**2 + x[:,6]**2)*(x[:,4]**2 + x[:,5]**2))
-                h4 = 16./3.*(x[:,1]**2*x[:,2]**2 + x[:,3]**2*x[:,6]**2 + x[:,4]**2*x[:,5]**2)
-                h5 = 32./3.*(x[:,1]**6 + x[:,2]**6 + x[:,3]**6 +
-                                x[:,4]**6 + x[:,5]**6 + x[:,6]**6)
-                h6 = 8./3.*((x[:,1]**4 + x[:,2]**4)*
-                            (x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) +
-                            (x[:,3]**4 + x[:,6]**4)*(x[:,4]**2 + x[:,5]**2) + 
-                            (x[:,1]**2 + x[:,2]**2)*
-                            (x[:,3]**4 + x[:,4]**4 + x[:,5]**4 + x[:,6]**4) +
-                            (x[:,3]**2 + x[:,6]**2)*(x[:,4]**4 + x[:,5]**4))
-                h7 = 16./3.*(x[:,1]**2*x[:,2]**2*(x[:,3]**2 + x[:,4]**2 + x[:,5]**2 + x[:,6]**2) + 
-                                x[:,3]**2*x[:,6]**2*(x[:,1]**2 + x[:,2]**2 + x[:,4]**2 + x[:,5]**2) + 
-                                x[:,4]**2*x[:,5]**2*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2 + x[:,6]**2))
-                h8 = 32./3.*(x[:,1]**4*x[:,2]**2 + x[:,3]**4*x[:,6]**2 + x[:,4]**4*x[:,5]**2 +
-                                x[:,1]**2*x[:,2]**4 + x[:,3]**2*x[:,6]**4 + x[:,4]**2*x[:,5]**4)
-                h9 = 8.*(x[:,1]**2 + x[:,2]**2)*(x[:,3]**2 + x[:,6]**2)*(x[:,4]**2 + x[:,5]**2)
-                h10 = 64./5.*((x[:,1]**2 - x[:,2]**2)*(x[:,3]*x[:,5] + x[:,4]*x[:,6])*(x[:,3]*x[:,4] - x[:,5]*x[:,6]) +
-                                x[:,1]*x[:,2]*(x[:,3]**2 - x[:,6]**2)*(x[:,4]**2 - x[:,5]**2))
-                h11 = 64.*np.sqrt(5)*x[:,1]*x[:,2]*x[:,3]*x[:,4]*x[:,5]*x[:,6]
-                
-                return [h0,h1,h2,h3,h4,h5,h6,h7,h8,h9,h10,h11]
-
-            elif self.dim==5:
-                h0 = x[:,0]
-                h1 = 1./3.*(x[:,1]**2 + x[:,2]**2 + x[:,3]**2)
-                h2 = 1./3.*(x[:,1]**4 + x[:,2]**4 + x[:,3]**4)
-                h3 = 1./3.*((x[:,1]**2)*(x[:,2]**2 + x[:,3]**2) + (x[:,2]**2*x[:,3]**2))
-                h4 = 1./3.*(x[:,1]**6 + x[:,2]**6 + x[:,3]**6)
-                h5 = 1./6.*((x[:,1]**4)*( x[:,2]**2 + x[:,3]**2) +(x[:,2]**4)*( x[:,1]**2 + x[:,3]**2)+(x[:,3]**4)*( x[:,2]**2 + x[:,1]**2)  )            
-                h6 = (x[:,1]**2)*(x[:,2]**2)*(x[:,3]**2)
-                
-                return [h0,h1,h2,h3,h4,h5,h6]
-            else:
-                return x
-            return 
+        def transforms(x):
+            return [eval(expr, {"x": x, "np": np}) for _, expr in self.transform]
 
         return transforms
     

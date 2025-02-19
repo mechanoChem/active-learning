@@ -6,7 +6,7 @@ os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
 # tf.config.set_visible_devices([], 'GPU')
 
 import sys
-directory = os.path.abspath('../../../al1/')
+directory = os.path.abspath('../../')
 sys.path.insert(0,directory)
 from active_learning.workflow.workflow import Workflow
 

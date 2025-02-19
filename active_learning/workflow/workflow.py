@@ -44,6 +44,8 @@ class Workflow():
                 shutil.rmtree(self.OutputFolder +'data/data_sampled')
             if  os.path.exists(self.OutputFolder +'data/outputFiles'):
                 shutil.rmtree(self.OutputFolder +'data/outputFiles')
+            if os.path.exists(self.OutputFolder):
+                shutil.rmtree(self.OutputFolder)
             if not os.path.exists(self.OutputFolder):
                 os.mkdir(self.OutputFolder)
             if not os.path.exists(self.OutputFolder+'data'):
@@ -72,8 +74,9 @@ class Workflow():
         [self.Model_type,    
          self.Data_Generation, self.Data_Generation_Source, 
          self.restart, self.Input_data, self.Input_alias, 
-         self.Output_alias,self.Iterations, self.OutputFolder, 
-         self.seed,self.input_dim,self.output_dim,self.derivative_dim,self.config_path,self.T, self.graph,self.reweight,self.reweight_alpha,self.prediction_points] = self.dict.get_category_values('Main')
+         self.Output_alias,self.Iterations, self.OutputFolder, self.input_dim,
+         self.output_dim,self.derivative_dim,self.config_path,self.T, self.testing_set,
+         self.graph,self.reweight,self.reweight_alpha,self.prediction_points,_] = self.dict.get_category_values('Main')
         
 
         
@@ -115,7 +118,7 @@ class Workflow():
 
     def construct_model(self):
         if self.Model_type == 'IDNN':
-            [self.transform_path] = self.dict.get_individual_keys('IDNN',['transforms_directory'])
+            [self.transform_path] = self.dict.get_individual_keys('IDNN',['transforms_path'])
             from active_learning.model.idnn_model import IDNN_Model 
             self.model = IDNN_Model(self.dict)
 
@@ -156,23 +159,12 @@ class Workflow():
         if self.step == "HPcomplete":
             current_loss=1000
             hp_loss = self.hyperparameter_search(self.rnd,current_loss,readonly=True)
-            print('hp_loss',hp_loss)
             self.step ="Exploitative"
             self.rnd+= 1
-        # print('self.rnd',self.rnd)
         if self.reweight and self.rnd>1:
             improvements =self.recommender.determine_improvement(self.rnd-1)
             self.recommender.reweight_criterion(self.rnd-1,improvements)
             
-
-        #  self.model.load_trained_model(self.rnd-1)
-
-    # def save_restart(self):
-    #     params = [self.rnd, self.step]
-    #     jsonparams = json.dumps(params)
-    #     with open(self.outputFolder + 'restart.json', "w") as outfile:
-    #         outfile.write(jsonparams)
-
 
     def handle_input_data(self,input_file):
         input_results = np.loadtxt('allResults49.txt')
@@ -200,7 +192,7 @@ class Workflow():
             if self.sample_external:
                 self.recommender.create_types("sample_wells")
                 self.recommender.create_types("sample_vertices")
-                # self.recommender.create_types('Externally_supplied_points')
+
             self.first_explore=False
         if not self.ExistingGlobal:
             self.recommender.explore(self.rnd)
@@ -209,7 +201,6 @@ class Workflow():
         if self.sample_external:
             self.recommender.sample_wells(self.rnd)
             self.recommender.sample_vertices(self.rnd)
-            # self.recommender.sample_external_data(self.rnd)
 
 
     
@@ -227,7 +218,6 @@ class Workflow():
                 self.recommender.create_types('sensitivity')
             self.first_exploit=False
 
-        # self.recommender.get_latest_pred(self.rnd)
         if self.sample_non_convexities or self.sample_sensitivity or self.find_wells:
             self.recommender.explore_extended(self.rnd,twoD=(self.recommender.explore2d()))
             self.recommender.predict_explore_extended(self.rnd)
@@ -259,29 +249,10 @@ class Workflow():
             self.sampling.submit_job(command)
             output =self.sampling.read_from_casm(rnd,self.ExistingGlobal,self.pointcount,self.pointcount+self.N_global_pts,self.recommender.explore2d(),self.points_2D)
             self.recommender.append(rnd,output)
-            # if self.ExistingGlobal:
-            #     if self.recommender.explore2d:
-            #         billardpoints = np.genfromtxt('shuffled.txt',dtype=np.float64)[round(self.pointcount*(1-self.points_2D)):round(self.pointcount*(1-self.points_2D))+round(self.N_global_pts*(1-self.points_2D)),:]
-            #         self.save(billardpoints,rnd,'billiardwalk_preexisting')
-            #         # print('range for billiard2D',round(self.pointcount*self.points_2D),'to',round(self.pointcount*self.points_2D)+round(self.N_global_pts*self.points_2D))
-            #         billardpoints2D = np.genfromtxt('billiard2D.txt',dtype=np.float64)[round(self.pointcount*self.points_2D):round(self.pointcount*self.points_2D)+round(self.N_global_pts*self.points_2D),:]
-            #         self.save(billardpoints2D,rnd,'billiardwalk2D_preexisting')
-            #         billardpoints = np.vstack((billardpoints,billardpoints2D))
-            #     else:
-            #         billardpoints = np.genfromtxt('shuffled.txt',dtype=np.float64)[self.pointcount:self.pointcount+self.N_global_pts,:]
-            #         self.save(billardpoints,rnd,'billiardwalk_preexisting')
-            #     kappa = billardpoints[:,:self.derivative_dim]
-            #     eta = billardpoints[:,self.derivative_dim:2*self.derivative_dim]
-            #     phi= billardpoints[:,2*self.derivative_dim:3*self.derivative_dim]
-            #     T = billardpoints[:,-self.derivative_dim-1:-self.derivative_dim]
-            #     mu =billardpoints[:,-self.derivative_dim:] 
-            #     output = np.hstack((eta,T, np.zeros(np.shape(T))))
-            #     self.recommender.append(rnd,output)
         else:
             if self.recommender.explore2d():
                 billardpoints = np.genfromtxt('shuffled.txt',dtype=np.float64)[round(self.pointcount*(1-self.points_2D)):round(self.pointcount*(1-self.points_2D))+round(self.N_global_pts*(1-self.points_2D)),:]
                 self.save(billardpoints,rnd,'billiardwalk_preexisting')
-                # print('range for billiard2D',round(self.pointcount*self.points_2D),'to',round(self.pointcount*self.points_2D)+round(self.N_global_pts*self.points_2D))
                 billardpoints2D = np.genfromtxt('billiard2D.txt',dtype=np.float64)[round(self.pointcount*self.points_2D):round(self.pointcount*self.points_2D)+round(self.N_global_pts*self.points_2D),:]
                 self.save(billardpoints2D,rnd,'billiardwalk2D_preexisting')
                 billardpoints = np.vstack((billardpoints,billardpoints2D))
@@ -295,20 +266,8 @@ class Workflow():
             mu =billardpoints[:,-self.derivative_dim:] 
             output = np.hstack((kappa,T, np.zeros(np.shape(T))))
             self.recommender.append(rnd,output,onlyInitial=True)
-            print('choose billiard points')
             self.recommender.choose_points(rnd)
-            print('end of choose points')
             kappas_kept =self.recommender.read_recommended(rnd)[:,0:7]
-            print("shape kappas kept",np.shape(kappas_kept))
-            # I = np.zeros((kappa.shape[0]), dtype=int)
-            # # Loop through each row of kappa and check if it's in kappas_kept
-            # for i in range(kappa.shape[0]):
-            #     if np.any(np.all(kappa[i]- kappas_kept < 1e-12, axis=1)):
-            #         I[i]=1
-
-            # I = I[I==1]
-            # print('kappa',np.shape(kappa))
-            # print('kappaI-12',np.shape(kappa[I,:]))
             
             
             I = np.zeros(kappa.shape[0], dtype=bool) 
@@ -317,12 +276,6 @@ class Workflow():
                 if np.any(np.all(kappa[i]- kappas_kept < 1e-11, axis=1)):
                     I[i] = True
 
-            # I = [I==1]
-            # print('kappa',np.shape(kappa))
-            # print('kappaI-11',np.shape(kappa[I,:]))
-            # print('I',I)
-            # print(kappa)
-            # print(kappa[I,:])
             
             self.sampling.write(rnd,kappa[I,:],eta[I,:],phi[I,:],T[I,:],mu[I,:])
         
@@ -373,14 +326,14 @@ class Workflow():
         # Get loss of previous idnn
         keras.backend.clear_session()
         #given data for rnd r, evaluates loss for rnd r-2
-        lastmodel = self.model.load_trained_model(rnd-1)#, custom_objects={'Transform': self.IDNN_transforms()})
+        lastmodel = self.model.load_trained_model(rnd-1)
         prev_loss = self.model.loss(rnd+1)
 
         print('prev loss',prev_loss)
 
 
         # Reload current IDNN
-        self.model.load_trained_model(rnd)#, custom_objects={'Transform': self.IDNN_transforms()})
+        self.model.load_trained_model(rnd)
         if current_loss < prev_loss:
             return True
         else:
@@ -403,7 +356,7 @@ class Workflow():
 
     def make_graphs(self,rnd):
         self.model.load_trained_model(rnd)
-        # graph(rnd, self.model,self.dict)
+        graph(rnd, self.model,self.dict)
         pred_training_points(rnd, self.model,self.dict)
 
     def main_workflow(self):
@@ -423,27 +376,18 @@ class Workflow():
 
             self.sample_data(self.rnd)
             self.step = 'Model_training'
-
-
-        # self.step ='Model_training'
         
 
         if self.step == 'Model_training':
             print('Train surrogate model, round ',self.rnd,'...')
 
             self.train()
-            print('Training Complete')
 
             if self.Data_Generation==False:
                 self.model = self.hyperparameter_search(self.rnd)
                 self.step = 'Complete'
-                # self.rnd += 1
                 print('Exploitative Sampling, round ',self.rnd,'...')
                 self.exploit(self.model)
-                current_time = time.time()
-                # print('Current time',current_time -self.start_time)
-                # print('Time since last time',current_time -self.last_time)
-                self.last_time = current_time 
                 self.recommender.choose_points(self.rnd)
             elif self.rnd == 1:
                 self.hyperparameter_search(self.rnd,1000)
@@ -499,27 +443,15 @@ class Workflow():
                 hp_loss = self.hyperparameter_search(self.rnd,current_loss)
                 print('Finished hyperparameter search')
                 
-                print('current_loss',current_loss)
-                print('hp_loss',hp_loss)
-                # if self.rnd !=1 and current_loss < hp_loss:
-                #     print('current_loss',current_loss)
-                #     print('hp_loss',hp_loss)
-                #     print('HP search did not yield lower mse - trying again')
-                #     hp_loss_2 = self.hyperparameter_search(self.rnd,current_loss,original=False)
-                #     if current_loss < hp_loss_2:
-                #         print('HP search did not yield lower mse \n Ending AL')
-                #         sys.exit()
             else:
                 self.hp_search=False
                 print('Train surrogate model, round ',self.rnd,'...')
                 
                 self.train()
-                print("Finished training")
                 
 
             graph(self.rnd, self.model,self.dict)
             pred_training_points(self.rnd, self.model,self.dict)
-            print('Finished graphs')
 
 
             # improvements = self.recommender.determine_improvement(self.rnd)

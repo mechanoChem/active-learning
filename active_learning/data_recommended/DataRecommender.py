@@ -39,8 +39,8 @@ class DataRecommender():
         [self.Model_type,    
          self.Data_Generation, self.Data_Generation_Source, self.restart,
          self.inputs_data,self.inputs_alias,self.output_alias, self.iterations,
-         self.OutputFolder, self.seed, self.inputs_dim, self.derivative_dim,
-         self.output_dim,self.config_path,self.T,self.graph,self.reweight,self.alpha,self.prediction_points] = self.dict.get_category_values('Main')
+         self.OutputFolder, self.inputs_dim, self.derivative_dim,
+         self.output_dim,self.config_path,self.T,self.testing_set,self.graph,self.reweight,self.alpha,self.prediction_points, self.novelty] = self.dict.get_category_values('Main')
 
 
 
@@ -60,15 +60,7 @@ class DataRecommender():
             self.domain2d = self.sampling_dict['continuous_dependent'][domain]['2d'] 
             self.x0_2d = self.x0[0:2]
             self.points_2d = self.sampling_dict['continuous_dependent'][domain]['2d_points'] 
-        # print('create boundary points')
-        # for domain in self.sampling_dict['continuous_dependent'] :
-        #     print('domain',domain)
-        #     n_planes = self.sampling_dict['continuous_dependent'][domain]['n_planes']
-        #     c_planes = self.sampling_dict['continuous_dependent'][domain]['c_planes']
-        #     eta_b=self.create_boundary_points(self.sampling_dict['continuous_dependent'][domain]['x0'],n_planes,c_planes,1000000)   
-        #     np.savetxt(self.OutputFolder+'global_boundary_points2.txt',eta_b,fmt='%.12f',
-        #                 header=self.header)      
-        
+
         [self.relevent_indices]= self.dict.get_individual_keys(self.Data_Generation_Source,['relevent_indices'])
 
     def explore2d(self):
@@ -80,7 +72,6 @@ class DataRecommender():
     
     def create_types(self,type):   
         self.type_criterion[type] = len(self.type_criterion)
-        print('self.type_criterion',self.type_criterion)
 
         self.weights = np.ones(len(self.type_criterion))
         with open(self.OutputFolder+'data/data_recommended/types.txt', 'w') as file: 
@@ -220,7 +211,7 @@ class DataRecommender():
         return self.type_criterion
 
     def load_data(self,rnd,singleRnd=True):
-        print('loading data')
+        print('Loading Data for rnd', rnd)
         if singleRnd:
             data =  np.load(self.OutputFolder + 'data/data_sampled/results{}.npy'.format(rnd),allow_pickle=True)
         else:
@@ -292,20 +283,12 @@ class DataRecommender():
             badvalue = 0
             for i in range(32):
                 value = 0
-                # l=0
-                # for j in self.relevent_indices:
                 for j in range(self.dim):
                     value += Qinv[i,j]*eta[k,j]
-                    # l+=1
-                # print('value',value)
                 if value > 1.05 or value < -0.05:
-                    # count+=1
-                    # keep[k]=0
                     badvalue=value
                     isbad = True
             if isbad == True:
-                # print('etas',eta[k,:])
-                # print('value',badvalue)
                 keep[k]=0
         true_false_array = [bool(x) for x in keep]
         return true_false_array
@@ -499,9 +482,7 @@ class DataRecommender():
             random_discrete = np.reshape(random_discrete,(global_points,dim))
             output = np.hstack((output,random_discrete))
         
-    #EDIT - reorder these to match input_alias 
 
-        # print(self.type_criterion_of_input)
         output = output[:,1:]
          ## EDIT - temporary 
 
@@ -519,7 +500,6 @@ class DataRecommender():
 
     def find_eigenvalues_explore(self,rnd):
         inputs = self.inputs_explore.copy()
-        # output = self.output.copy()
         pred = self.output_explore.copy()
         free = pred[0]
         mu = pred[1]
@@ -527,7 +507,7 @@ class DataRecommender():
         eigen = np.zeros(mu.shape)
         eigenvector = np.zeros(hessian.shape)
 
-        # print(np.shape(eigen))
+
 
         for i in range(len(hessian)):
             eigen[i,:], eigenvector[i,:,:] = LA.eig(hessian[i,:,:])
@@ -538,7 +518,7 @@ class DataRecommender():
 
     def get_latest_pred(self,rnd):
         self.inputs,self.output = self.load_data(rnd-1)
-        print('Predicting...')
+        print('Predicting for rnd',rnd)
         self.output_pred = self.model.predict(self.inputs.copy())
     
 
@@ -568,7 +548,6 @@ class DataRecommender():
                 higherror =  column[np.argsort(error)[::-1],:]
                 inputs[k]=higherror
             
-            # print('high error og points order',inputs)
             input_local = self.find_new_points(inputs, self.high_error_repeat_points, self.high_error_repeat,[self.high_error_perturb,0.5], 'high_error')
    
         input_local = self.combine_list(input_local)
@@ -619,19 +598,13 @@ class DataRecommender():
         idx = df.groupby('x')['free'].idxmin()
 
 
-        # print('resultlist',resultlist)
-        # Get the corresponding x2, x3, and y values for the indices
         result = df.loc[idx, resultlist]
-        # print(result[0:2,:])
-        # np.random.shuffle(result)
         result= result.sample(frac=1).reset_index(drop=True)
         temp = self.T*np.ones((np.shape(result)[0],1))
         input =[result,temp]
         input_local = self.find_new_points(input,self.lowest_repeat_points,self.lowest_repeat,[self.lowest_perturb,.5],'lowest_free_energy')
         input_local = self.combine_list(input_local)
 
-        # input_local = np.hstack((result,temp))
-        # print(input_local[0:2,:])
         self.write(rnd, 'lowest_free_energy', input_local)
 
 
@@ -654,8 +627,6 @@ class DataRecommender():
         # Use the average distance to the k-nearest neighbors as the novelty score
         novelty_scores_dist = np.mean(np.sort(distances, axis=1)[:, :k], axis=1)
         shortest_distances = np.min(distances, axis=1)
-        # print('shortest_distance',np.min(shortest_distances))
-        # print('average of shortest_distance',np.average(shortest_distances))
         novelty_scores_dist[shortest_distances < self.min_param] = 0
 
         pred_new = self.model.predict([new_points[:,:self.dim],new_points[:,self.dim:]])
@@ -699,13 +670,12 @@ class DataRecommender():
     def choose_points(self,rnd):
         kept_points=[]
         if not os.path.exists(self.OutputFolder+'data/data_recommended/initial_rnd'+str(rnd)+'.txt'):
-            print("path doesn't exist")
             output = np.empty((0,15))
             np.savetxt(self.OutputFolder+'data/data_recommended/initial_rnd'+str(rnd)+'.txt',
                     output,
                     fmt='%.12f',
                     header=self.header)
-        elif rnd >50:
+        elif self.novelty ==True and rnd>0:
             print('Begin Reduction of Points, round ',rnd,'...')
             new_points = self.read_initial_recommended(rnd)
             old_points = self.read_recommended(0)
@@ -716,10 +686,6 @@ class DataRecommender():
             n = len(novelty_scores)
 
             import matplotlib.pyplot as plt
-            # print('np.average(normalized_scores)',np.average(normalized_scores))
-            # plt.scatter(np.arange(n), normalized_scores)
-            # plt.show()
-
             indices = np.arange(n)
             np.random.shuffle(indices)  # Randomly shuffle the indices
             
@@ -821,19 +787,9 @@ class DataRecommender():
 
 
     def determine_improvement(self,rnd):
-        # data=np.genfromtxt(self.OutputFolder + 'data/data_sampled/CASMresults'+str(rnd)+'.txt',dtype=np.float64)
         points = self.read_recommended(rnd)
-
-        # print('points',points)
-        
-
-        #find actual values of mu
         mu_real,I = self.get_trained_points(rnd,points) 
-
-
-        # print(np.shape(points))
         points = points[I,:]
-        # print(np.shape(points))
 
         # predict with old model
         pred_new = self.model.predict([points[:,:self.dim],points[:,self.dim:]])
@@ -844,21 +800,16 @@ class DataRecommender():
         self.model.load_trained_model(rnd) # should be rnd or rnd-1? 
 
 
-        #current weights
 
         categories = points[:,-1]
 
 
         mse_old = self.diff_in_mu(pred_old[1],mu_real)
-        # print('mse_old',mse_old)
         mse_new = self.diff_in_mu(pred_new[1],mu_real)
-        # print('mse_new',mse_new)
-
-        # print('mse_old',mse_old[0:2,:])
 
         mu_old = pred_old[1]
         mu_new = pred_new[1]
-        # mu_real = real_data
+
 
         type_averages_new = {
         category: mean_squared_error(
@@ -876,8 +827,6 @@ class DataRecommender():
             for category in self.type_criterion
         }
 
-        print('type_averages_new',type_averages_new)
-        print('type_averages_old',type_averages_old)
 
         # Calculate the average improvement in MSE for each type
         type_improvements = {category: type_averages_old[category] - type_averages_new[category] for category in self.type_criterion}
@@ -888,21 +837,25 @@ class DataRecommender():
         input, output = self.model.input_columns_to_training(input, output)
         current_mse = self.model.model_evaluate(input, output)
 
-        print('current mse',current_mse)
 
 
 
         # Get loss of previous idnn
         keras.backend.clear_session()
-        lastmodel = self.model.load_trained_model(rnd-1)#, custom_objects={'Transform': self.IDNN_transforms()})
+        lastmodel = self.model.load_trained_model(rnd-1)
         prev_mse =self.model.model_evaluate(input, output)
 
-        print('prev mse',prev_mse)
-
         # Reload current IDNN
-        self.model.load_trained_model(rnd)#, custom_objects={'Transform': self.IDNN_transforms()})
+        self.model.load_trained_model(rnd)
 
-        if  prev_mse[2] - current_mse[2] < self.stopping_alpha*current_mse[2] :
+        if isinstance(prev_mse, list):
+            prev_mse = prev_mse[2]
+            current_mse  = current_mse[2]
+
+
+
+
+        if  prev_mse - current_mse < self.stopping_alpha*current_mse :
             return True
         
         return False

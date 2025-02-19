@@ -8,11 +8,12 @@
 "output_alias": "output", 
 "iterations": "25", 
 "outputfolder": "/Output/", 
-"seed": "1", 
 "input_dim":"8",
 "derivative_dim":"7",
 "output_dim":"7",
-"dir_path": null}, 
+"dir_path": null,
+"temp": "300",
+"testing_set": null}, 
 
 "CASM": 
 {"casm_project_dir": "/Users/jamieholber/Software/active-learning/tests/LCO/CASMcode", 
@@ -32,7 +33,7 @@
 "dim": "7", 
 "version": "LCO", 
 "activation": "tanh", 
-"transforms_directory": "/Users/jamieholber/Software/active-learning/tests/LCO"}, 
+"transforms_path": "/Users/jamieholber/Software/active-learning/tests/LCO"}, 
 
 "Custom": 
 {"generation_file": "''"}, 
@@ -89,7 +90,7 @@
  "neurons": "60", 
  "activation": "tanh,tanh", 
  "dropout": "0.06", 
- "transforms_directory": "/Users/jamieholber/Software/active-learning/tests/LCO", 
+ "transforms_path": "/Users/jamieholber/Software/active-learning/tests/LCO", 
 
  "loss": "mse,mse,null", 
  "loss_weights": "0.01,0.1,0", 

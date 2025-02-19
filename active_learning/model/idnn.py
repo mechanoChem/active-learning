@@ -27,7 +27,6 @@ class IDNN(tf.keras.Model):
         def DNN(y, T):
             if self.transforms:
                 y = Transform(self.transforms)(y)
-            # y = Concatenate()([y, T])
             for layer in self.dnn_layers:
                 y = layer(y)
             return y
@@ -40,7 +39,6 @@ class IDNN(tf.keras.Model):
                 g.watch(x2)
                 y2 = DNN(x2, x4)
             dy = g.gradient(y2, x2)
-            # print(f"Gradient shape: {dy.shape}, Variable shape: {g.shape}")
             
             with tf.GradientTape() as g2:
                 g2.watch(x3)
